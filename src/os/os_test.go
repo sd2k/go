@@ -108,7 +108,7 @@ var sysdir = func() *sysDir {
 				"local",
 			},
 		}
-	case "wasip1":
+	case "wasip1", "wasip3":
 		// wasmtime has issues resolving symbolic links that are often present
 		// in directories like /etc/group below (e.g. private/etc/group on OSX).
 		// For this reason we use files in the Go source tree instead.
@@ -628,7 +628,7 @@ func TestReaddirnamesOneAtATime(t *testing.T) {
 	switch runtime.GOOS {
 	case "android":
 		dir = "/system/bin"
-	case "ios", "wasip1":
+	case "ios", "wasip1", "wasip3":
 		wd, err := Getwd()
 		if err != nil {
 			t.Fatal(err)
@@ -1114,6 +1114,9 @@ func TestRenameNotExisting(t *testing.T) {
 }
 
 func TestRenameToDirFailed(t *testing.T) {
+	if runtime.GOOS == "wasip3" {
+		t.Skip("WASI rename-at allows overwriting directories")
+	}
 	t.Chdir(t.TempDir())
 	from, to := "renamefrom", "renameto"
 
@@ -1272,7 +1275,7 @@ func checkMode(t *testing.T, path string, mode FileMode) {
 
 func TestChmod(t *testing.T) {
 	// Chmod is not supported on wasip1.
-	if runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		t.Skip("Chmod is not supported on " + runtime.GOOS)
 	}
 	t.Parallel()
@@ -1666,6 +1669,9 @@ func TestFileChdirTestlog(t *testing.T) {
 }
 
 func TestChdirAndGetwd(t *testing.T) {
+	if runtime.GOOS == "wasip3" {
+		t.Skip("WASI path resolution differs from host symlink layout")
+	}
 	t.Chdir(t.TempDir()) // Ensure wd is restored after the test.
 
 	// These are chosen carefully not to be symlinks on a Mac
@@ -1677,7 +1683,7 @@ func TestChdirAndGetwd(t *testing.T) {
 		dirs = []string{"/system/bin"}
 	case "plan9":
 		dirs = []string{"/", "/usr"}
-	case "ios", "windows", "wasip1":
+	case "ios", "windows", "wasip1", "wasip3":
 		dirs = nil
 		for _, dir := range []string{t.TempDir(), t.TempDir()} {
 			// Expand symlinks so path equality tests work.
@@ -1835,7 +1841,7 @@ func TestSeek(t *testing.T) {
 
 func TestSeekError(t *testing.T) {
 	switch runtime.GOOS {
-	case "js", "plan9", "wasip1":
+	case "js", "plan9", "wasip1", "wasip3":
 		t.Skipf("skipping test on %v", runtime.GOOS)
 	}
 	t.Parallel()
@@ -2288,7 +2294,7 @@ func TestFilePermissions(t *testing.T) {
 				if test.mode&0444 == 0 {
 					t.Skip("write-only files not supported on " + runtime.GOOS)
 				}
-			case "wasip1":
+			case "wasip1", "wasip3":
 				t.Skip("file permissions not supported on " + runtime.GOOS)
 			}
 			testMaybeRooted(t, func(t *testing.T, r *Root) {
@@ -2466,6 +2472,9 @@ func TestNilProcessStateString(t *testing.T) {
 }
 
 func TestSameFile(t *testing.T) {
+	if runtime.GOOS == "wasip3" {
+		t.Skip("WASI does not expose inode numbers")
+	}
 	t.Chdir(t.TempDir())
 	fa, err := Create("a")
 	if err != nil {
@@ -2573,7 +2582,7 @@ func TestLargeWriteToConsole(t *testing.T) {
 }
 
 func TestStatDirModeExec(t *testing.T) {
-	if runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		t.Skip("Chmod is not supported on " + runtime.GOOS)
 	}
 	t.Parallel()
@@ -2760,7 +2769,7 @@ func TestLongPath(t *testing.T) {
 					if dir.Size() != filesize || filesize != wantSize {
 						t.Errorf("Size(%q) is %d, len(ReadFile()) is %d, want %d", path, dir.Size(), filesize, wantSize)
 					}
-					if runtime.GOOS != "wasip1" { // Chmod is not supported on wasip1
+					if runtime.GOOS != "wasip1" && runtime.GOOS != "wasip3" { // Chmod is not supported on WASI
 						err = Chmod(path, dir.Mode())
 						if err != nil {
 							t.Fatalf("Chmod(%q) failed: %v", path, err)
@@ -2955,8 +2964,8 @@ func TestPipeThreads(t *testing.T) {
 		t.Skip("skipping on Plan 9; does not support runtime poller")
 	case "js":
 		t.Skip("skipping on js; no support for os.Pipe")
-	case "wasip1":
-		t.Skip("skipping on wasip1; no support for os.Pipe")
+	case "wasip1", "wasip3":
+		t.Skip("skipping on WASI; no support for os.Pipe")
 	}
 
 	threads := 100
@@ -3545,7 +3554,7 @@ func TestFileIOCloseRace(t *testing.T) {
 // Test that it's OK to have parallel I/O and Close on a pipe.
 func TestPipeIOCloseRace(t *testing.T) {
 	// Skip on wasm, which doesn't have pipes.
-	if runtime.GOOS == "js" || runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "js" || runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		t.Skipf("skipping on %s: no pipes", runtime.GOOS)
 	}
 	t.Parallel()
@@ -3623,7 +3632,7 @@ func TestPipeIOCloseRace(t *testing.T) {
 // Test that it's OK to call Close concurrently on a pipe.
 func TestPipeCloseRace(t *testing.T) {
 	// Skip on wasm, which doesn't have pipes.
-	if runtime.GOOS == "js" || runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "js" || runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		t.Skipf("skipping on %s: no pipes", runtime.GOOS)
 	}
 	t.Parallel()

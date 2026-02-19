@@ -146,7 +146,7 @@ func MustHaveGoRun(t testing.TB) {
 // There is a copy of this function in cmd/dist/test.go.
 func HasParallelism() bool {
 	switch runtime.GOOS {
-	case "js", "wasip1":
+	case "js", "wasip1", "wasip3":
 		return false
 	}
 	return true

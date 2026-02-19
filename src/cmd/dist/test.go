@@ -1044,7 +1044,7 @@ func (t *tester) registerTests() {
 		t.registerRaceTests()
 	}
 
-	if goos != "android" && !t.iOS() {
+	if goos != "android" && goos != "wasip3" && !t.iOS() {
 		// Only start multiple test dir shards on builders,
 		// where they get distributed to multiple machines.
 		// See issues 20141 and 31834.
@@ -1555,7 +1555,7 @@ func (t *tester) runPending(nextTest *distTest) {
 // because cmd/dist can not import internal packages during bootstrap.
 func (t *tester) hasParallelism() bool {
 	switch goos {
-	case "js", "wasip1":
+	case "js", "wasip1", "wasip3":
 		return false
 	}
 	return true
