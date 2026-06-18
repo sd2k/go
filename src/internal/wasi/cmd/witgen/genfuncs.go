@@ -312,8 +312,12 @@ func (g *Generator) generateFuncDecl(w *strings.Builder, rf ResolvedFunc, module
 		flatResults = g.flatten(rf.Result)
 	}
 
-	// Build the wasmimport name (including [async-lower] etc.)
-	wasmName := rf.Name
+	// Build the wasmimport name (including [async-lower] etc.). Normalize the
+	// async annotations to their canonical core mangling: async-ness is carried
+	// by the [async-lower] prefix, so the base name uses [method]/plain form
+	// (WASI 0.3 rc 2026-03-15 displays them as "[async method]"/"[async]").
+	// This also removes the space that would otherwise break //go:wasmimport.
+	wasmName := asyncPrefixNormalizer.Replace(rf.Name)
 	asyncPrefix := ""
 	if rf.IsAsync {
 		asyncPrefix = "[async-lower]"

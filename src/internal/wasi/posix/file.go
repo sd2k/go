@@ -136,7 +136,7 @@ func PreparePathDesc(path string) (filesystem.Descriptor, string) {
 
 // --- Error helper ---
 
-func fsErr(code filesystem.ErrorCode) error { return FSErrorCode(code) }
+func fsErr(code uint8) error { return FSErrorCode(code) }
 
 // --- Core file I/O ---
 
@@ -159,7 +159,7 @@ func fileOpenAt(dirFD int32, path string, isAppend bool, pathFlags, openFlags, d
 
 	result := f.Desc.OpenAt(pathFlags, path, openFlags, descFlags)
 	if result.IsErr() {
-		return -1, fsErr(result.Err())
+		return -1, fsErr(result.Err().Disc())
 	}
 
 	newDesc := result.OK()
@@ -167,7 +167,7 @@ func fileOpenAt(dirFD int32, path string, isAppend bool, pathFlags, openFlags, d
 	if !isDirectory {
 		typeResult := newDesc.GetType()
 		if !typeResult.IsErr() {
-			isDirectory = typeResult.OK() == filesystem.DescriptorTypeDirectory
+			isDirectory = typeResult.OK().Disc() == filesystem.DescriptorTypeDirectory
 		}
 	}
 	goFd := AllocFD(newDesc, isDirectory)
@@ -201,7 +201,7 @@ func FileRead(f *CMFD, b []byte, offset int64) (int, error) {
 	reader, future := f.Desc.ReadViaStream(offset)
 	n, result := wasi.ReadStreamBytes(reader, future, b)
 	if result.IsErr() {
-		return n, fsErr(result.Err())
+		return n, fsErr(result.Err().Disc())
 	}
 	return n, nil
 }
@@ -212,7 +212,7 @@ func FileWrite(f *CMFD, b []byte, offset int64) (int, error) {
 	future := f.Desc.WriteViaStream(reader, offset)
 	n, result := wasi.WriteStreamBytes(writer, future, b)
 	if result.IsErr() {
-		return n, fsErr(result.Err())
+		return n, fsErr(result.Err().Disc())
 	}
 	return n, nil
 }
@@ -223,7 +223,7 @@ func FileAppend(f *CMFD, b []byte) (int, error) {
 	future := f.Desc.AppendViaStream(reader)
 	n, result := wasi.WriteStreamBytes(writer, future, b)
 	if result.IsErr() {
-		return n, fsErr(result.Err())
+		return n, fsErr(result.Err().Disc())
 	}
 	return n, nil
 }
@@ -243,7 +243,7 @@ func FileSeek(f *CMFD, offset int64, whence int) (int64, error) {
 	case 2: // END
 		statResult := f.Desc.Stat()
 		if statResult.IsErr() {
-			return 0, fsErr(statResult.Err())
+			return 0, fsErr(statResult.Err().Disc())
 		}
 		sz := int64(statResult.OK().Size)
 		newPos = sz + offset
@@ -262,7 +262,7 @@ func FileSeek(f *CMFD, offset int64, whence int) (int64, error) {
 func FileSetSize(f *CMFD, size int64) error {
 	result := f.Desc.SetSize(size)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -271,7 +271,7 @@ func FileSetSize(f *CMFD, size int64) error {
 func FileSync(f *CMFD) error {
 	result := f.Desc.Sync()
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -282,7 +282,7 @@ func FileSync(f *CMFD) error {
 func FileStat(f *CMFD) (filesystem.DescriptorStatT, error) {
 	result := f.Desc.Stat()
 	if result.IsErr() {
-		return filesystem.DescriptorStatT{}, fsErr(result.Err())
+		return filesystem.DescriptorStatT{}, fsErr(result.Err().Disc())
 	}
 	return result.OK(), nil
 }
@@ -291,7 +291,7 @@ func FileStat(f *CMFD) (filesystem.DescriptorStatT, error) {
 func FileStatAt(desc filesystem.Descriptor, pathFlags int32, path string) (filesystem.DescriptorStatT, error) {
 	result := desc.StatAt(pathFlags, path)
 	if result.IsErr() {
-		return filesystem.DescriptorStatT{}, fsErr(result.Err())
+		return filesystem.DescriptorStatT{}, fsErr(result.Err().Disc())
 	}
 	return result.OK(), nil
 }
@@ -357,7 +357,7 @@ func ReadDirEntries(fd int) ([]DirEntry, error) {
 	filesystem.DescriptorReadDirectoryFutureDropReadable1(futureHandle)
 
 	if futBuf.data[0] != 0 {
-		return entries, fsErr(filesystem.ErrorCode(futBuf.data[1]))
+		return entries, fsErr(futBuf.data[1])
 	}
 	return entries, nil
 }
@@ -368,7 +368,7 @@ func ReadDirEntries(fd int) ([]DirEntry, error) {
 func CreateDirAt(desc filesystem.Descriptor, path string) error {
 	result := desc.CreateDirectoryAt(path)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -377,7 +377,7 @@ func CreateDirAt(desc filesystem.Descriptor, path string) error {
 func UnlinkFileAt(desc filesystem.Descriptor, path string) error {
 	result := desc.UnlinkFileAt(path)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -386,7 +386,7 @@ func UnlinkFileAt(desc filesystem.Descriptor, path string) error {
 func RemoveDirAt(desc filesystem.Descriptor, path string) error {
 	result := desc.RemoveDirectoryAt(path)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func RemoveDirAt(desc filesystem.Descriptor, path string) error {
 func ReadlinkAt(desc filesystem.Descriptor, path string) (string, error) {
 	result := desc.ReadlinkAt(path)
 	if result.IsErr() {
-		return "", fsErr(result.Err())
+		return "", fsErr(result.Err().Disc())
 	}
 	return result.OK(), nil
 }
@@ -404,7 +404,7 @@ func ReadlinkAt(desc filesystem.Descriptor, path string) (string, error) {
 func RenameAt(oldDesc filesystem.Descriptor, oldPath string, newDesc filesystem.Descriptor, newPath string) error {
 	result := oldDesc.RenameAt(oldPath, int32(newDesc), newPath)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -413,7 +413,7 @@ func RenameAt(oldDesc filesystem.Descriptor, oldPath string, newDesc filesystem.
 func LinkAt(oldDesc filesystem.Descriptor, oldPath string, newDesc filesystem.Descriptor, newPath string, pathFlags int32) error {
 	result := oldDesc.LinkAt(pathFlags, oldPath, int32(newDesc), newPath)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -422,7 +422,7 @@ func LinkAt(oldDesc filesystem.Descriptor, oldPath string, newDesc filesystem.De
 func SymlinkAt(target string, desc filesystem.Descriptor, path string) error {
 	result := desc.SymlinkAt(target, path)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }
@@ -431,7 +431,7 @@ func SymlinkAt(target string, desc filesystem.Descriptor, path string) error {
 func SetTimesAt(desc filesystem.Descriptor, pathFlags int32, path string, atime, mtime filesystem.NewTimestamp) error {
 	result := desc.SetTimesAt(pathFlags, path, atime, mtime)
 	if result.IsErr() {
-		return fsErr(result.Err())
+		return fsErr(result.Err().Disc())
 	}
 	return nil
 }

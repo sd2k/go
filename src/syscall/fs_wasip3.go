@@ -68,7 +68,7 @@ var fsErrors = [...]Errno{
 	35: EXDEV,        // cross-device
 }
 
-func fsError(code filesystem.ErrorCode) Errno {
+func fsError(code uint8) Errno {
 	if int(code) < len(fsErrors) {
 		return fsErrors[code]
 	}
@@ -81,7 +81,7 @@ func fsErrToSyscall(err error) error {
 		return nil
 	}
 	if e, ok := err.(posix.FSErrorCode); ok {
-		return fsError(filesystem.ErrorCode(e))
+		return fsError(uint8(e))
 	}
 	if err == posix.ErrMFILE {
 		return EMFILE

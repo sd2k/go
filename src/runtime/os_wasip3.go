@@ -14,26 +14,26 @@ import (
 // Component model builtins are in internal/wasi/builtins.go.
 // The runtime only needs the task-return import below.
 //
-//go:wasmimport [export]wasi:cli/run@0.3.0-rc-2026-02-09 [task-return]run
+//go:wasmimport [export]wasi:cli/run@0.3.0-rc-2026-03-15 [task-return]run
 func task_return_run(result int32)
 
 // wasip3 clocks — keep in runtime for early bootstrap (nanotime1 runs
 // before any other package's init).
 //
-//go:wasmimport wasi:clocks/monotonic-clock@0.3.0-rc-2026-02-09 now
+//go:wasmimport wasi:clocks/monotonic-clock@0.3.0-rc-2026-03-15 now
 func monotonic_clock_now() int64
 
-//go:wasmimport wasi:clocks/system-clock@0.3.0-rc-2026-02-09 now
+//go:wasmimport wasi:clocks/system-clock@0.3.0-rc-2026-03-15 now
 //go:noescape
 func system_clock_now(retptr unsafe.Pointer)
 
-//go:wasmimport wasi:clocks/monotonic-clock@0.3.0-rc-2026-02-09 [async-lower]wait-for
+//go:wasmimport wasi:clocks/monotonic-clock@0.3.0-rc-2026-03-15 [async-lower]wait-for
 func async_wait_for(ns int64) int32
 
 // wasip3 random — keep in runtime for early bootstrap (readRandom runs
 // before any other package's init).
 //
-//go:wasmimport wasi:random/random@0.3.0-rc-2026-02-09 get-random-u64
+//go:wasmimport wasi:random/random@0.3.0-rc-2026-03-15 get-random-u64
 func random_get_u64() int64
 
 type systemClockInstant struct {
@@ -57,20 +57,20 @@ func usleep(usec uint32) {
 // wasip3 stderr -- direct CM writes for runtime output (println, panic).
 // All runtime output goes to stderr regardless of the fd parameter.
 
-//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-02-09 [stream-new-0]write-via-stream
+//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-03-15 [stream-new-0]write-via-stream
 func stderr_stream_new() int64
 
-//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-02-09 write-via-stream
+//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-03-15 write-via-stream
 func stderr_write_via_stream(reader int32) int32
 
-//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-02-09 [async-lower][stream-write-0]write-via-stream
+//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-03-15 [async-lower][stream-write-0]write-via-stream
 //go:noescape
 func stderr_stream_write(writable int32, ptr unsafe.Pointer, n int32) int32
 
-//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-02-09 [stream-drop-writable-0]write-via-stream
+//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-03-15 [stream-drop-writable-0]write-via-stream
 func stderr_stream_drop_writable(writable int32)
 
-//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-02-09 [future-drop-readable-1]write-via-stream
+//go:wasmimport wasi:cli/stderr@0.3.0-rc-2026-03-15 [future-drop-readable-1]write-via-stream
 func stderr_future_drop_readable(readable int32)
 
 func write1(fd uintptr, p unsafe.Pointer, n int32) int32 {
