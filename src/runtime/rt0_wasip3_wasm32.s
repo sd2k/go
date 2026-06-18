@@ -6,7 +6,7 @@
 #include "textflag.h"
 
 // _rt0_wasm32_wasip3 is the async entry point for the wasip3 component.
-// It is exported as [async-lift]wasi:cli/run@0.3.0-rc-2026-02-09#run.
+// It is exported as [async-lift]wasi:cli/run@0.3.0-rc-2026-03-15#run.
 // It initializes the Go runtime, starts the scheduler, and when all
 // goroutines are blocked on async operations, returns an i32 encoding
 // WAIT|(waitable_set<<4) so the host knows which waitable set to poll.
@@ -43,7 +43,7 @@ TEXT _rt0_wasm32_wasip3(SB),NOSPLIT,$0
 
 // wasm_export_asyncRunCallback is the callback entry point for the wasip3
 // component. It is exported as
-// [callback][async-lift]wasi:cli/run@0.3.0-rc-2026-02-09#run.
+// [callback][async-lift]wasi:cli/run@0.3.0-rc-2026-03-15#run.
 // The host calls this when a waitable set event fires.
 // Parameters: R0=event, R1=p1 (subtask handle), R2=p2 (status).
 // Returns an i32: either WAIT|(set<<4) to keep waiting, or EXIT(0) when done.

@@ -121,7 +121,7 @@ func DescriptorTypeToFiletype(dt filesystem.DescriptorType) uint8 {
 		FILETYPE_SOCKET_STREAM    = 6
 		FILETYPE_SYMBOLIC_LINK    = 7
 	)
-	switch dt {
+	switch dt.Disc() {
 	case filesystem.DescriptorTypeBlockDevice:
 		return FILETYPE_BLOCK_DEVICE
 	case filesystem.DescriptorTypeCharacterDevice:
@@ -149,7 +149,7 @@ func FDStatGetFlags(goFd int) (uint32, error) {
 	}
 	result := f.Desc.GetFlags()
 	if result.IsErr() {
-		return 0, FSErrorCode(result.Err())
+		return 0, FSErrorCode(result.Err().Disc())
 	}
 	var flags uint32
 	descFlags := result.OK()
@@ -170,19 +170,19 @@ func FDStatGetType(goFd int) (uint8, error) {
 	}
 	result := f.Desc.GetType()
 	if result.IsErr() {
-		return 0, FSErrorCode(result.Err())
+		return 0, FSErrorCode(result.Err().Disc())
 	}
-	return uint8(result.OK()), nil
+	return result.OK().Disc(), nil
 }
 
 // ErrBADF is returned when a file descriptor is invalid.
 var ErrBADF error = FSErrorCode(filesystem.ErrorCodeBadDescriptor)
 
 // FSErrorCode wraps a filesystem error code as a Go error.
-type FSErrorCode filesystem.ErrorCode
+type FSErrorCode uint8
 
 func (e FSErrorCode) Error() string {
-	switch filesystem.ErrorCode(e) {
+	switch uint8(e) {
 	case filesystem.ErrorCodeAccess:
 		return "filesystem: access denied"
 	case filesystem.ErrorCodeBadDescriptor:

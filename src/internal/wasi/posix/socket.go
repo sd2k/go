@@ -348,7 +348,7 @@ func SockConnectBlocking(fd int, sock int32, addr sockets.IPSocketAddress) error
 	defer wasi.FreeResult(unsafe.Pointer(result))
 
 	if result.IsErr() {
-		return sockError(result.Err())
+		return sockError(result.Err().Disc())
 	}
 
 	// Set up streams now that connection is established.
@@ -386,7 +386,7 @@ func UDPReceive(fd int, buf []byte) (n int, ip [16]byte, port int, isIPv4 bool, 
 	defer wasi.FreeResult(unsafe.Pointer(result))
 
 	if result.IsErr() {
-		return 0, ip, 0, false, sockError(result.Err())
+		return 0, ip, 0, false, sockError(result.Err().Disc())
 	}
 
 	data, addr := result.OK()
@@ -419,7 +419,7 @@ func UDPSend(fd int, buf []byte, ip [16]byte, port int, isIPv4 bool) error {
 	defer wasi.FreeResult(unsafe.Pointer(result))
 
 	if result.IsErr() {
-		return sockError(result.Err())
+		return sockError(result.Err().Disc())
 	}
 	return nil
 }
@@ -443,21 +443,21 @@ func UDPSendConnected(fd int, buf []byte) error {
 	defer wasi.FreeResult(unsafe.Pointer(result))
 
 	if result.IsErr() {
-		return sockError(result.Err())
+		return sockError(result.Err().Disc())
 	}
 	return nil
 }
 
 // sockError wraps a WASI socket error code as a Go error.
-func sockError(code sockets.ErrorCode) error {
+func sockError(code uint8) error {
 	return SockErrorCode(code)
 }
 
 // SockErrorCode wraps a sockets error code as a Go error.
-type SockErrorCode sockets.ErrorCode
+type SockErrorCode uint8
 
 func (e SockErrorCode) Error() string {
-	switch sockets.ErrorCode(e) {
+	switch uint8(e) {
 	case sockets.ErrorCodeAccessDenied:
 		return "socket: access denied"
 	case sockets.ErrorCodeNotSupported:
@@ -614,7 +614,7 @@ func SockSocket(family, sotype int) (int, error) {
 	if sotype == 2 { // SOCK_DGRAM
 		createResult := sockets.NewUDPSocket(afCode)
 		if createResult.IsErr() {
-			return -1, sockError(createResult.Err())
+			return -1, sockError(createResult.Err().Disc())
 		}
 		sysfd := AllocUDPSocketFD(int32(createResult.OK()))
 		if sysfd < 0 {
@@ -627,7 +627,7 @@ func SockSocket(family, sotype int) (int, error) {
 	// SOCK_STREAM (TCP)
 	createResult := sockets.NewTCPSocket(afCode)
 	if createResult.IsErr() {
-		return -1, sockError(createResult.Err())
+		return -1, sockError(createResult.Err().Disc())
 	}
 	sock := createResult.OK()
 	// Allocate FD with empty streams — streams are set up after connect/accept.
@@ -657,7 +657,7 @@ func SockBind(fd int, ip [16]byte, port int, isIPv4 bool) error {
 		result = sockets.TCPSocket(f.SockHandle).Bind(addr)
 	}
 	if result.IsErr() {
-		return sockError(result.Err())
+		return sockError(result.Err().Disc())
 	}
 	f.Bound = true
 	return nil
@@ -674,13 +674,13 @@ func SockListen(fd int, backlog int) error {
 	// Set backlog size.
 	backlogResult := sock.SetListenBacklogSize(int64(backlog))
 	if backlogResult.IsErr() {
-		return sockError(backlogResult.Err())
+		return sockError(backlogResult.Err().Disc())
 	}
 
 	// Start listening — returns an accept stream.
 	listenResult := sock.Listen()
 	if listenResult.IsErr() {
-		return sockError(listenResult.Err())
+		return sockError(listenResult.Err().Disc())
 	}
 	acceptReader := NewTCPAcceptStreamReader(listenResult.OK())
 
@@ -701,7 +701,7 @@ func SockAccept(fd int) (newfd int, ip [16]byte, port int, isIPv4 bool, err erro
 	sock := sockets.TCPSocket(sockHandle)
 	result := sock.GetRemoteAddress()
 	if result.IsErr() {
-		return newSysfd, ip, 0, false, sockError(result.Err())
+		return newSysfd, ip, 0, false, sockError(result.Err().Disc())
 	}
 	ip, port, isIPv4 = parseIPSocketAddress(result.OK())
 
@@ -717,13 +717,13 @@ func SockGetsockname(fd int) (ip [16]byte, port int, isIPv4 bool, err error) {
 	if f.IsUDP {
 		result := sockets.UDPSocket(f.SockHandle).GetLocalAddress()
 		if result.IsErr() {
-			return ip, 0, false, sockError(result.Err())
+			return ip, 0, false, sockError(result.Err().Disc())
 		}
 		ip, port, isIPv4 = parseIPSocketAddress(result.OK())
 	} else {
 		result := sockets.TCPSocket(f.SockHandle).GetLocalAddress()
 		if result.IsErr() {
-			return ip, 0, false, sockError(result.Err())
+			return ip, 0, false, sockError(result.Err().Disc())
 		}
 		ip, port, isIPv4 = parseIPSocketAddress(result.OK())
 	}
@@ -739,13 +739,13 @@ func SockGetpeername(fd int) (ip [16]byte, port int, isIPv4 bool, err error) {
 	if f.IsUDP {
 		result := sockets.UDPSocket(f.SockHandle).GetRemoteAddress()
 		if result.IsErr() {
-			return ip, 0, false, sockError(result.Err())
+			return ip, 0, false, sockError(result.Err().Disc())
 		}
 		ip, port, isIPv4 = parseIPSocketAddress(result.OK())
 	} else {
 		result := sockets.TCPSocket(f.SockHandle).GetRemoteAddress()
 		if result.IsErr() {
-			return ip, 0, false, sockError(result.Err())
+			return ip, 0, false, sockError(result.Err().Disc())
 		}
 		ip, port, isIPv4 = parseIPSocketAddress(result.OK())
 	}
@@ -774,7 +774,7 @@ func SockConnectStart(fd int, ip [16]byte, port int, isIPv4 bool) error {
 		// Completed synchronously.
 		defer wasi.FreeResult(unsafe.Pointer(result))
 		if result.IsErr() {
-			return sockError(result.Err())
+			return sockError(result.Err().Disc())
 		}
 		// Set up streams.
 		recvReader, recvFuture, sendWriter, sendFuture, err := SetupConnStreams(f.SockHandle)
@@ -830,7 +830,7 @@ func SockGetConnectResult(fdNum int) error {
 	f.ConnectSubtask = 0
 	var connectErr error
 	if connectResult.IsErr() {
-		connectErr = sockError(connectResult.Err())
+		connectErr = sockError(connectResult.Err().Disc())
 	}
 	wasi.FreeResult(f.ConnectResult)
 	f.ConnectResult = nil
@@ -874,7 +874,7 @@ func SockConnectSync(fd int, ip [16]byte, port int, isIPv4 bool) error {
 		}
 		bindResult := sock.Bind(bindAddr)
 		if bindResult.IsErr() {
-			return sockError(bindResult.Err())
+			return sockError(bindResult.Err().Disc())
 		}
 		f.Bound = true
 	}
@@ -885,7 +885,7 @@ func SockConnectSync(fd int, ip [16]byte, port int, isIPv4 bool) error {
 	}
 	result := sock.Connect(addr)
 	if result.IsErr() {
-		return sockError(result.Err())
+		return sockError(result.Err().Disc())
 	}
 	return nil
 }

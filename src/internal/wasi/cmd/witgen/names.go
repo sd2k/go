@@ -133,7 +133,7 @@ func (g *Generator) isPrim(rt *ResolvedType, prim string) bool {
 
 // modulePath returns the wasmimport module path for a WIT interface.
 // The component model canonical format is "namespace:package/interface@version"
-// (e.g. "wasi:sockets/types@0.3.0-rc-2026-02-09"), so we extract the version
+// (e.g. "wasi:sockets/types@0.3.0-rc-2026-03-15"), so we extract the version
 // from the package name and place it at the end.
 func (g *Generator) modulePath(iface Interface) string {
 	pkg := g.doc.Packages[iface.Package]
@@ -146,8 +146,24 @@ func (g *Generator) modulePath(iface Interface) string {
 	return fmt.Sprintf("%s/%s%s", pkgName, iface.Name, version)
 }
 
+// asyncPrefixNormalizer maps the async ABI annotations to their sync spelling
+// so Go-identifier derivation can treat them uniformly. WASI 0.3
+// (rc 2026-03-15) annotates async functions in their canonical name — methods
+// as "[async method]resource.name" and free functions as "[async]name" —
+// whereas earlier snapshots left async-ness implicit ("[method]…" / "name").
+// This only affects the generated Go identifier; the `//go:wasmimport`
+// directive keeps the exact (raw) ABI name. Longer patterns are listed first so
+// they take precedence over the bare "[async]".
+var asyncPrefixNormalizer = strings.NewReplacer(
+	"[async method]", "[method]",
+	"[async-method]", "[method]",
+	"[async static]", "[static]",
+	"[async-static]", "[static]",
+	"[async]", "",
+)
+
 func (g *Generator) goFuncName(rf ResolvedFunc) string {
-	name := rf.Name
+	name := asyncPrefixNormalizer.Replace(rf.Name)
 	// Remove [method]/[static]/[constructor] prefix.
 	if strings.HasPrefix(name, "[method]") {
 		name = strings.TrimPrefix(name, "[method]")
@@ -179,7 +195,7 @@ func (g *Generator) goFuncName(rf ResolvedFunc) string {
 // goMethodName extracts just the method part from a WIT method name.
 // e.g., "[method]tcp-socket.listen" → "Listen"
 func (g *Generator) goMethodName(rf ResolvedFunc) string {
-	name := rf.Name
+	name := asyncPrefixNormalizer.Replace(rf.Name)
 	for _, pfx := range []string{"[method]", "[async-method]"} {
 		name = strings.TrimPrefix(name, pfx)
 	}
