@@ -64,7 +64,7 @@ func ASanSupported(goos, goarch string) bool {
 func FIPS140Supported(goos, goarch string) bool {
 	// Keep this in sync with crypto/internal/fips140.Supported.
 	switch {
-	case goarch == "wasm",
+	case goarch == "wasm" || goarch == "wasm32",
 		goos == "windows" && goarch == "386",
 		goos == "openbsd",
 		goos == "aix":

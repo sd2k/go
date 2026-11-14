@@ -32,11 +32,6 @@ TEXT runtime·mstart(SB),NOSPLIT|TOPFRAME,$0
 DATA  runtime·mainPC+0(SB)/4,$runtime·main(SB)
 GLOBL runtime·mainPC(SB),RODATA,$4
 
-// func checkASM() bool
-TEXT ·checkASM(SB), NOSPLIT, $0-1
-	MOVB $1, ret+0(FP)
-	RET
-
 TEXT runtime·gogo(SB), NOSPLIT, $0-4
 	MOVW buf+0(FP), R0
 	MOVW gobuf_g(R0), R1
@@ -210,16 +205,6 @@ TEXT runtime·systemstack_switch(SB), NOSPLIT, $0-0
 
 TEXT runtime·abort(SB),NOSPLIT|NOFRAME,$0-0
 	UNDEF
-
-// AES hashing not implemented for wasm
-TEXT runtime·memhash(SB),NOSPLIT|NOFRAME,$0-20
-	JMP	runtime·memhashFallback(SB)
-TEXT runtime·strhash(SB),NOSPLIT|NOFRAME,$0-12
-	JMP	runtime·strhashFallback(SB)
-TEXT runtime·memhash32(SB),NOSPLIT|NOFRAME,$0-12
-	JMP	runtime·memhash32Fallback(SB)
-TEXT runtime·memhash64(SB),NOSPLIT|NOFRAME,$0-12
-	JMP	runtime·memhash64Fallback(SB)
 
 TEXT runtime·asminit(SB), NOSPLIT, $0-0
 	// No per-thread init.

@@ -696,7 +696,7 @@ func isErrReadOnlyFS(err error) bool {
 	case "windows":
 		const ERROR_NOT_SUPPORTED = 50
 		return errors.Is(err, syscall.Errno(ERROR_NOT_SUPPORTED))
-	case "wasip1":
+	case "wasip1", "wasip3":
 		const EROFS = 69
 		return errors.Is(err, syscall.Errno(EROFS))
 	default: // unix and js

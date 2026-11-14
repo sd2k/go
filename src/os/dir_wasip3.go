@@ -78,7 +78,7 @@ func (f *File) readdir(n int, mode readdirMode) (names []string, dirents []DirEn
 		case readdirName:
 			names = append(names, e.Name)
 		case readdirDirEntry:
-			de, err := newUnixDirent(f.name, e.Name, typ)
+			de, err := newUnixDirent(f, e.Name, typ)
 			if IsNotExist(err) {
 				continue
 			}
@@ -87,7 +87,7 @@ func (f *File) readdir(n int, mode readdirMode) (names []string, dirents []DirEn
 			}
 			dirents = append(dirents, de)
 		case readdirFileInfo:
-			info, err := lstat(f.name + "/" + e.Name)
+			info, err := f.lstatat(e.Name)
 			if IsNotExist(err) {
 				continue
 			}
