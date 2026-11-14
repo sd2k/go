@@ -11,8 +11,8 @@
 //
 //	wasm-tools component wit ./wit --json | witgen -pkg clocks -tags wasip3 \
 //	  -outdir src/internal/wasi/clocks \
-//	  -gen 'wasi:clocks@0.3.0-rc-2026-03-15/types:types.go' \
-//	  -gen 'wasi:clocks@0.3.0-rc-2026-03-15/monotonic-clock:clocks.go:Monotonic'
+//	  -gen 'wasi:clocks@0.3.0/types:types.go' \
+//	  -gen 'wasi:clocks@0.3.0/monotonic-clock:clocks.go:Monotonic'
 //
 // This is a prototype tailored for the Go standard library's needs,
 // producing slim bindings without a heavyweight runtime library.

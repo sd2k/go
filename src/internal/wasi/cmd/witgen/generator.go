@@ -18,7 +18,7 @@ import (
 
 // GenSpec describes one interface-to-file mapping.
 type GenSpec struct {
-	IfaceName string // "wasi:clocks@0.3.0-rc-2026-03-15/types"
+	IfaceName string // "wasi:clocks@0.3.0/types"
 	IfaceIdx  int    // resolved index into doc.Interfaces
 	Filename  string // "types.go"
 	Prefix    string // "Monotonic"
@@ -27,7 +27,7 @@ type GenSpec struct {
 // ImportSpec maps a WIT package to a Go import path, allowing cross-package
 // type references instead of generating local copies.
 type ImportSpec struct {
-	WITPkg   string // "wasi:clocks@0.3.0-rc-2026-03-15"
+	WITPkg   string // "wasi:clocks@0.3.0"
 	GoImport string // "internal/wasi/clocks"
 	GoAlias  string // "clocks"
 }

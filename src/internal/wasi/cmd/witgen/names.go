@@ -133,7 +133,7 @@ func (g *Generator) isPrim(rt *ResolvedType, prim string) bool {
 
 // modulePath returns the wasmimport module path for a WIT interface.
 // The component model canonical format is "namespace:package/interface@version"
-// (e.g. "wasi:sockets/types@0.3.0-rc-2026-03-15"), so we extract the version
+// (e.g. "wasi:sockets/types@0.3.0"), so we extract the version
 // from the package name and place it at the end.
 func (g *Generator) modulePath(iface Interface) string {
 	pkg := g.doc.Packages[iface.Package]

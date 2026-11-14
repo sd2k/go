@@ -456,7 +456,7 @@ func writeExportSec(ctxt *ld.Link, ldr *loader.Loader, lenHostImports int) {
 		}
 		writeUleb128(ctxt.Out, uint64(3+len(ldr.WasmExports))) // number of exports
 
-		const wasiRunExport = "wasi:cli/run@0.3.0-rc-2026-03-15"
+		const wasiRunExport = "wasi:cli/run@0.3.0"
 
 		// Export entry point: [async-lift]wasi:cli/run@...#run
 		entry := fmt.Sprintf("_rt0_%s_wasip3", buildcfg.GOARCH)
