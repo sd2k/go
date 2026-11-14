@@ -378,10 +378,9 @@ func pollsetPeekResult(handle int32) int32 {
 // pollSubtaskCancelAndWait cancels a pending subtask and blocks until
 // cancellation completes.
 //
-// The handle must still be in the waitable set (as a pollset entry from
-// pollsetArm). This is critical: removing the handle before cancel
-// (via pollsetDisarm) can cause wasmtime to mark the terminal status
-// as "delivered", making [async-lower][subtask-cancel] trap.
+// The handle may still be a pollset entry from pollsetArm; its entry
+// is kept so a stashed terminal result stays visible, but subtaskCancel
+// takes it out of the waitable set for the cancel itself.
 //
 // Uses [async-lower][subtask-cancel] so we don't depend on the host
 // blocking internally (which wasmtime happens to do for host subtasks,
@@ -410,7 +409,7 @@ func pollSubtaskCancelAndWait(handle int32) {
 		if result != 0 {
 			wasi.SubtaskDrop(handle)
 		} else {
-			cancelResult := wasi.SubtaskCancelAsync(handle)
+			cancelResult := subtaskCancel(handle)
 			if cancelResult == blocked {
 				pollsetInit()
 				wasi.WaitableJoin(handle, waitableSet)
@@ -427,7 +426,7 @@ func pollSubtaskCancelAndWait(handle int32) {
 		// Handle never armed in waitable set (e.g., connect subtask
 		// created before netpollopen). Use async cancel.
 		pollsetInit()
-		cancelResult := wasi.SubtaskCancelAsync(handle)
+		cancelResult := subtaskCancel(handle)
 		if cancelResult == blocked {
 			wasi.WaitableJoin(handle, waitableSet)
 			gp := getg()
@@ -439,7 +438,7 @@ func pollSubtaskCancelAndWait(handle int32) {
 		return
 	}
 
-	result := wasi.SubtaskCancelAsync(handle)
+	result := subtaskCancel(handle)
 	if result == blocked {
 		// Cancel pending — transition from pollset entry to async
 		// waiter so the event loop wakes this goroutine on completion.
@@ -457,6 +456,7 @@ func pollSubtaskCancelAndWait(handle int32) {
 
 		// Replace pollset entry with async waiter. handleCount and
 		// netpollWaiters stay unchanged (replacing, not adding).
+		wasi.WaitableJoin(handle, waitableSet)
 		gp := getg()
 		handles[handle] = handleEntry{gp: uintptr(unsafe.Pointer(gp)), drop: true}
 		gopark(nil, nil, waitReasonIOWait, traceBlockNet, 1)
@@ -465,6 +465,17 @@ func pollSubtaskCancelAndWait(handle int32) {
 	// Completed immediately. Disarm the pollset entry and drop.
 	pollsetDisarm(handle)
 	wasi.SubtaskDrop(handle)
+}
+
+// subtaskCancel issues an async subtask.cancel. The canonical ABI traps if
+// the subtask is still joined to a waitable set (wasmtime >= 50 enforces
+// this), so leave the set first; leaving keeps any pending event, which
+// cancel then reports as the terminal status. Callers rejoin on BLOCKED.
+//
+//go:nosplit
+func subtaskCancel(handle int32) int32 {
+	wasi.WaitableJoin(handle, 0)
+	return wasi.SubtaskCancelAsync(handle)
 }
 
 // netpollProcessEvent handles a single event from the waitable set.
@@ -625,11 +636,12 @@ func netpoll(delay int64) (gList, int32) {
 	// Clean up pending timer if a non-timer event woke us.
 	if timerHandle != -1 {
 		removeAsyncWaiter(timerHandle)
-		result := wasi.SubtaskCancelAsync(timerHandle)
+		result := subtaskCancel(timerHandle)
 		if result == blocked {
-			// Cancel pending — leave the handle in the waitable set
+			// Cancel pending — put the handle back in the waitable set
 			// for auto-drop when the completion event arrives. Suppress
 			// new timer creation until then to prevent accumulation.
+			wasi.WaitableJoin(timerHandle, waitableSet)
 			addAsyncWaiter(timerHandle, 0, true)
 			pendingTimerCancel = timerHandle
 		} else {

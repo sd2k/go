@@ -50,13 +50,8 @@ case "${GOWASIRUNTIME:-wasmtime}" in
         # Grant full filesystem access, networking, and environment inheritance
         # so that Go test binaries can function properly.
         #
-        # We need a wasmtime build from main (post-v42.0.1) that includes:
-        #   - PR #12550: borrow state tracking fix for async tasks (e.g. closing
-        #     a UDP socket while a receive is pending)
-        #   - PR #12570: subtask reparenting removal
-        #   - PR #12640: host subtask cancellation fix
-        # These are expected to ship in wasmtime v43.0.0. Until then, a
-        # build from main may be needed.
+        # Requires wasmtime >= 50, which implements WASI 0.3.0 and the
+        # matching component-model async ABI.
         #
         # Tracing: set WASMTIME_LOG to enable wasmtime trace logging, e.g.:
         #   WASMTIME_LOG=wasmtime_runtime::component::concurrent=trace
@@ -73,7 +68,7 @@ case "${GOWASIRUNTIME:-wasmtime}" in
         exec "$WASMTIME" run \
             -S p3 \
             -W component-model-async \
-            -W component-model-async-builtins \
+            -W component-model-more-async-builtins \
             -W max-wasm-stack=8388608 \
             -S tcp \
             -S udp \
