@@ -2265,7 +2265,7 @@ func runRootMultiTestDescs(t *testing.T, source, target testFileDesc, f func(*te
 		}
 	}
 
-	if runtime.GOOS == "wasip1" || runtime.GOOS == "js" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" || runtime.GOOS == "js" {
 		// WASI runtimes don't have any consistent behavior for handling paths with
 		// a trailing /, so skip consistency tests for these paths.
 		if rootTest.source.anySlashSuffix() || rootTest.target.anySlashSuffix() {
@@ -2757,7 +2757,7 @@ func (desc testFileDesc) create(t *testing.T, dir, base, token string) (fi os.Fi
 			t.Skip("symlinks not supported on " + runtime.GOOS)
 		}
 		linktarget := desc.target.ref.path(dir, "s_"+base)
-		if runtime.GOOS == "wasip1" && filepath.IsAbs(linktarget) {
+		if (runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3") && filepath.IsAbs(linktarget) {
 			t.Skip("absolute link targets not supported on " + runtime.GOOS)
 		}
 		fi = desc.target.create(t, dir, "s_"+base, token)
@@ -2929,7 +2929,7 @@ func TestRootMultiOpen(t *testing.T) {
 }
 
 func TestRootMultiChmod(t *testing.T) {
-	if runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		t.Skip("Chmod not supported on " + runtime.GOOS)
 	}
 	runRootMultiTest(t, func(t *testing.T, test *rootMultiTest) (string, error) {
@@ -3043,7 +3043,7 @@ func TestRootMultiCreate(t *testing.T) {
 }
 
 func TestRootMultiLink(t *testing.T) {
-	if runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		switch os.Getenv("GOWASIRUNTIME") {
 		case "", "wasmtime":
 			// This test fails when run with wasmtime, because os.RemoveAll fails
@@ -3228,7 +3228,7 @@ func testRootMultiMkdirAll(t *testing.T, test *rootMultiTest, targetPath string)
 }
 
 func TestRootMultiRename(t *testing.T) {
-	if runtime.GOOS == "wasip1" {
+	if runtime.GOOS == "wasip1" || runtime.GOOS == "wasip3" {
 		switch os.Getenv("GOWASIRUNTIME") {
 		case "", "wasmtime":
 			// This test fails when run with wasmtime, because os.RemoveAll fails
