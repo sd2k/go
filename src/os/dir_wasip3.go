@@ -7,6 +7,7 @@
 package os
 
 import (
+	"internal/wasi/generated/filesystem"
 	"internal/wasi/posix"
 	"io"
 	"sync"
@@ -104,25 +105,25 @@ func (f *File) readdir(n int, mode readdirMode) (names []string, dirents []DirEn
 	return names, dirents, infos, nil
 }
 
-// descriptorTypeToFileMode converts a WASI 0.3 descriptor-type enum
-// to an os.FileMode type bits value.
+// descriptorTypeToFileMode converts a WASI 0.3 descriptor-type
+// discriminant to an os.FileMode type bits value.
 func descriptorTypeToFileMode(dt uint8) FileMode {
 	switch dt {
-	case 1: // block-device
+	case filesystem.DescriptorTypeBlockDevice:
 		return ModeDevice
-	case 2: // character-device
+	case filesystem.DescriptorTypeCharacterDevice:
 		return ModeDevice | ModeCharDevice
-	case 3: // directory
+	case filesystem.DescriptorTypeDirectory:
 		return ModeDir
-	case 4: // fifo
+	case filesystem.DescriptorTypeFifo:
 		return ModeNamedPipe
-	case 5: // symbolic-link
+	case filesystem.DescriptorTypeSymbolicLink:
 		return ModeSymlink
-	case 6: // regular-file
+	case filesystem.DescriptorTypeRegularFile:
 		return 0
-	case 7: // socket
+	case filesystem.DescriptorTypeSocket:
 		return ModeSocket
-	default: // unknown
+	default: // other
 		return ^FileMode(0)
 	}
 }

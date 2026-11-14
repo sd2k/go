@@ -299,6 +299,7 @@ func FileStatAt(desc filesystem.Descriptor, pathFlags int32, path string) (files
 // --- Directory operations ---
 
 // DirEntry represents a directory entry returned by ReadDirEntries.
+// Type is the descriptor-type discriminant (filesystem.DescriptorType*).
 type DirEntry struct {
 	Type uint8
 	Name string
@@ -321,12 +322,19 @@ func ReadDirEntries(fd int) ([]DirEntry, error) {
 	var entries []DirEntry
 
 	for {
+		// Canonical ABI layout of directory-entry: descriptor-type is a
+		// variant (u8 discriminant + other(option<string>) payload,
+		// 16 bytes), followed by the name string.
 		var entryBuf struct {
-			_       [0]int32
-			typ     uint8
-			_pad    [3]byte
-			namePtr int32
-			nameLen int32
+			_        [0]int32
+			typ      uint8
+			_pad     [3]byte
+			otherSet uint8
+			_pad2    [3]byte
+			otherPtr int32
+			otherLen int32
+			namePtr  int32
+			nameLen  int32
 		}
 		result := filesystem.DescriptorReadDirectoryStreamRead0(streamHandle, unsafe.Pointer(&entryBuf), 1)
 		if result == wasi.Blocked {
