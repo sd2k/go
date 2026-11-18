@@ -931,12 +931,21 @@ func findfunc(pc uintptr) funcInfo {
 		return funcInfo{}
 	}
 
-	x := uintptr(pcOff) + datap.text - datap.minpc // TODO: are datap.text and datap.minpc always equal?
 	if GOARCH == "wasm" || GOARCH == "wasm32" {
-		// On Wasm, pcOff is the function index, whereas
-		// the "PC" is function index << 16 + block index.
-		x = uintptr(pcOff)<<16 + datap.text - datap.minpc
+		// On Wasm, pcOff is the function index (the "PC" is
+		// function index << 16 + block index), and the linker
+		// guarantees that ftab entries have consecutive function
+		// indices, so index ftab directly. The linker does not emit
+		// findfunctab on Wasm (see cmd/link/internal/ld/pcln.go).
+		idx := uintptr(pcOff - datap.ftab[0].entryoff)
+		if pcOff < datap.ftab[0].entryoff || idx >= uintptr(len(datap.ftab)-1) {
+			return funcInfo{}
+		}
+		funcoff := datap.ftab[idx].funcoff
+		return funcInfo{(*_func)(unsafe.Pointer(&datap.pclntable[funcoff])), datap}
 	}
+
+	x := uintptr(pcOff) + datap.text - datap.minpc // TODO: are datap.text and datap.minpc always equal?
 	b := x / abi.FuncTabBucketSize
 	i := x % abi.FuncTabBucketSize / (abi.FuncTabBucketSize / nsub)
 

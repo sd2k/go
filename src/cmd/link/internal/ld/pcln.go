@@ -1023,8 +1023,39 @@ func (ctxt *Link) findfunctab(state *pclntab, container loader.Bitmap) {
 
 	size := 4*int64(nbuckets) + int64(n)
 
+	if ctxt.IsWasm() {
+		// On Wasm, a PC is funcIndex<<16 | resumePoint, so a bucket table
+		// covering the PC space would need one bucket per 4 KB of a
+		// 64 KB-per-function address space (about 320 bytes per function).
+		// Since function indices are dense, the runtime instead indexes
+		// ftab directly by function index (see runtime/symtab.go:findfunc).
+		// Check that assumption here and emit a stub table.
+		textStart := ldr.SymValue(ldr.Lookup("runtime.text", 0))
+		first := int64(-1)
+		idx := int64(0)
+		for _, s := range ctxt.Textp {
+			if !emitPcln(ctxt, s, container) {
+				continue
+			}
+			off := int64(textOff(ctxt, s, textStart))
+			if first < 0 {
+				first = off
+			}
+			if off != first+idx {
+				Errorf("wasm: function %s has index %d, want %d (ftab not dense)", ldr.SymName(s), off, first+idx)
+				break
+			}
+			idx++
+		}
+		size = 4
+	}
+
 	writeFindFuncTab := func(_ *Link, s loader.Sym) {
 		t := ldr.MakeSymbolUpdater(s)
+		if ctxt.IsWasm() {
+			t.SetUint32(ctxt.Arch, 0, 0)
+			return
+		}
 
 		indexes := make([]int32, n)
 		for i := int32(0); i < n; i++ {
