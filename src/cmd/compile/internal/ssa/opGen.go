@@ -6489,6 +6489,13 @@ const (
 	OpWasmI64LeU
 	OpWasmI64GeS
 	OpWasmI64GeU
+	OpWasmI32Eqz
+	OpWasmI32Eq
+	OpWasmI32Ne
+	OpWasmI32LtS
+	OpWasmI32LtU
+	OpWasmI32LeS
+	OpWasmI32LeU
 	OpWasmF32Eq
 	OpWasmF32Ne
 	OpWasmF32Lt
@@ -101643,6 +101650,110 @@ var opcodeTable = [...]opInfo{
 		argLen:  2,
 		earlyOk: true,
 		asm:     wasm.AI64GeU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Eqz",
+		argLen:  1,
+		earlyOk: true,
+		asm:     wasm.AI32Eqz,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Eq",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32Eq,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Ne",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32Ne,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32LtS",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32LtS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32LtU",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32LtU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32LeS",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32LeS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, regMask{v1: 65535, v2: 0}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32LeU",
+		argLen:  2,
+		earlyOk: true,
+		asm:     wasm.AI32LeU,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, regMask{v1: 65535, v2: 1}}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP

@@ -227,6 +227,14 @@ func init() {
 		{name: "I64GeS", asm: "I64GeS", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // arg0 >= arg1 (signed)
 		{name: "I64GeU", asm: "I64GeU", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // arg0 >= arg1 (unsigned)
 
+		{name: "I32Eqz", asm: "I32Eqz", argLength: 1, reg: gp11, typ: "Bool", earlyOk: true}, // int32(arg0) == 0
+		{name: "I32Eq", asm: "I32Eq", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true},   // int32(arg0) == int32(arg1)
+		{name: "I32Ne", asm: "I32Ne", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true},   // int32(arg0) != int32(arg1)
+		{name: "I32LtS", asm: "I32LtS", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // int32(arg0) < int32(arg1) (signed)
+		{name: "I32LtU", asm: "I32LtU", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // int32(arg0) < int32(arg1) (unsigned)
+		{name: "I32LeS", asm: "I32LeS", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // int32(arg0) <= int32(arg1) (signed)
+		{name: "I32LeU", asm: "I32LeU", argLength: 2, reg: gp21, typ: "Bool", earlyOk: true}, // int32(arg0) <= int32(arg1) (unsigned)
+
 		{name: "F32Eq", asm: "F32Eq", argLength: 2, reg: fp32_21gp, typ: "Bool", earlyOk: true}, // arg0 == arg1
 		{name: "F32Ne", asm: "F32Ne", argLength: 2, reg: fp32_21gp, typ: "Bool", earlyOk: true}, // arg0 != arg1
 		{name: "F32Lt", asm: "F32Lt", argLength: 2, reg: fp32_21gp, typ: "Bool", earlyOk: true}, // arg0 < arg1

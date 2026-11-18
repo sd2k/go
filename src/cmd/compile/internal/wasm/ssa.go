@@ -446,6 +446,21 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 			s.Prog(wasm.AI64ExtendI32U)
 		}
 
+	case ssa.OpWasmI32Eqz:
+		getValue32(s, v.Args[0])
+		s.Prog(v.Op.Asm())
+		if extend {
+			s.Prog(wasm.AI64ExtendI32U)
+		}
+
+	case ssa.OpWasmI32Eq, ssa.OpWasmI32Ne, ssa.OpWasmI32LtS, ssa.OpWasmI32LtU, ssa.OpWasmI32LeS, ssa.OpWasmI32LeU:
+		getValue32(s, v.Args[0])
+		getValue32(s, v.Args[1])
+		s.Prog(v.Op.Asm())
+		if extend {
+			s.Prog(wasm.AI64ExtendI32U)
+		}
+
 	case ssa.OpWasmI64Add, ssa.OpWasmI64Sub, ssa.OpWasmI64Mul, ssa.OpWasmI64DivU, ssa.OpWasmI64RemS, ssa.OpWasmI64RemU, ssa.OpWasmI64And, ssa.OpWasmI64Or, ssa.OpWasmI64Xor, ssa.OpWasmI64Shl, ssa.OpWasmI64ShrS, ssa.OpWasmI64ShrU, ssa.OpWasmI64Rotl,
 		ssa.OpWasmF32Add, ssa.OpWasmF32Sub, ssa.OpWasmF32Mul, ssa.OpWasmF32Div, ssa.OpWasmF32Copysign,
 		ssa.OpWasmF64Add, ssa.OpWasmF64Sub, ssa.OpWasmF64Mul, ssa.OpWasmF64Div, ssa.OpWasmF64Copysign:
@@ -522,6 +537,7 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 func isAlready32(v *ssa.Value) bool {
 	switch v.Op {
 	case ssa.OpWasmI64Eqz, ssa.OpWasmI64Eq, ssa.OpWasmI64Ne, ssa.OpWasmI64LtS, ssa.OpWasmI64LtU, ssa.OpWasmI64GtS, ssa.OpWasmI64GtU, ssa.OpWasmI64LeS, ssa.OpWasmI64LeU, ssa.OpWasmI64GeS, ssa.OpWasmI64GeU,
+		ssa.OpWasmI32Eqz, ssa.OpWasmI32Eq, ssa.OpWasmI32Ne, ssa.OpWasmI32LtS, ssa.OpWasmI32LtU, ssa.OpWasmI32LeS, ssa.OpWasmI32LeU,
 		ssa.OpWasmF32Eq, ssa.OpWasmF32Ne, ssa.OpWasmF32Lt, ssa.OpWasmF32Gt, ssa.OpWasmF32Le, ssa.OpWasmF32Ge,
 		ssa.OpWasmF64Eq, ssa.OpWasmF64Ne, ssa.OpWasmF64Lt, ssa.OpWasmF64Gt, ssa.OpWasmF64Le, ssa.OpWasmF64Ge,
 		ssa.OpWasmI8x16ExtractLaneS, ssa.OpWasmI16x8ExtractLaneS, ssa.OpWasmI32x4ExtractLane,
@@ -533,6 +549,11 @@ func isAlready32(v *ssa.Value) bool {
 }
 
 func getValue32(s *ssagen.State, v *ssa.Value) {
+	if v.OnWasmStack && v.Op == ssa.OpWasmI64Const {
+		s.OnWasmStackSkipped--
+		i32Const(s, int32(v.AuxInt))
+		return
+	}
 	if v.OnWasmStack {
 		s.OnWasmStackSkipped--
 		ssaGenValueOnStack(s, v, false)

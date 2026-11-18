@@ -215,28 +215,30 @@
 (RotateLeft64 ...) => (I64Rotl ...)
 
 // Lowering comparisons
+// 32-bit comparisons use i32 compares on the wrapped operands, which is
+// cheaper than extending both operands to 64 bits.
 (Less64  ...) => (I64LtS ...)
-(Less32  x y) => (I64LtS (SignExt32to64 x) (SignExt32to64 y))
+(Less32  ...) => (I32LtS ...)
 (Less16  x y) => (I64LtS (SignExt16to64 x) (SignExt16to64 y))
 (Less8   x y) => (I64LtS (SignExt8to64  x) (SignExt8to64  y))
 (Less64U ...) => (I64LtU ...)
-(Less32U x y) => (I64LtU (ZeroExt32to64 x) (ZeroExt32to64 y))
+(Less32U ...) => (I32LtU ...)
 (Less16U x y) => (I64LtU (ZeroExt16to64 x) (ZeroExt16to64 y))
 (Less8U  x y) => (I64LtU (ZeroExt8to64  x) (ZeroExt8to64  y))
 (Less(64|32)F ...) => (F(64|32)Lt ...)
 
 (Leq64  ...) => (I64LeS ...)
-(Leq32  x y) => (I64LeS (SignExt32to64 x) (SignExt32to64 y))
+(Leq32  ...) => (I32LeS ...)
 (Leq16  x y) => (I64LeS (SignExt16to64 x) (SignExt16to64 y))
 (Leq8   x y) => (I64LeS (SignExt8to64  x) (SignExt8to64  y))
 (Leq64U ...) => (I64LeU ...)
-(Leq32U x y) => (I64LeU (ZeroExt32to64 x) (ZeroExt32to64 y))
+(Leq32U ...) => (I32LeU ...)
 (Leq16U x y) => (I64LeU (ZeroExt16to64 x) (ZeroExt16to64 y))
 (Leq8U  x y) => (I64LeU (ZeroExt8to64  x) (ZeroExt8to64  y))
 (Leq(64|32)F ...) => (F(64|32)Le ...)
 
 (Eq64  ...) => (I64Eq ...)
-(Eq32  x y) => (I64Eq (ZeroExt32to64 x) (ZeroExt32to64 y))
+(Eq32  ...) => (I32Eq ...)
 (Eq16  x y) => (I64Eq (ZeroExt16to64 x) (ZeroExt16to64 y))
 (Eq8   x y) => (I64Eq (ZeroExt8to64  x) (ZeroExt8to64  y))
 (EqB   ...) => (I64Eq ...)
@@ -244,7 +246,7 @@
 (Eq(64|32)F ...) => (F(64|32)Eq ...)
 
 (Neq64  ...) => (I64Ne ...)
-(Neq32  x y) => (I64Ne (ZeroExt32to64 x) (ZeroExt32to64 y))
+(Neq32  ...) => (I32Ne ...)
 (Neq16  x y) => (I64Ne (ZeroExt16to64 x) (ZeroExt16to64 y))
 (Neq8   x y) => (I64Ne (ZeroExt8to64  x) (ZeroExt8to64  y))
 (NeqB   ...) => (I64Ne ...)
@@ -363,9 +365,9 @@
 // Miscellaneous
 (Convert ...) => (LoweredConvert ...)
 (IsNonNil p) => (I64Eqz (I64Eqz p))
-(IsInBounds idx len) && config.PtrSize == 4 => (I64LtU (ZeroExt32to64 idx) (ZeroExt32to64 len))
+(IsInBounds idx len) && config.PtrSize == 4 => (I32LtU idx len)
 (IsInBounds idx len) => (I64LtU idx len)
-(IsSliceInBounds idx len) && config.PtrSize == 4 => (I64LeU (ZeroExt32to64 idx) (ZeroExt32to64 len))
+(IsSliceInBounds idx len) && config.PtrSize == 4 => (I32LeU idx len)
 (IsSliceInBounds idx len) => (I64LeU idx len)
 (NilCheck ...) => (LoweredNilCheck ...)
 (GetClosurePtr ...) => (LoweredGetClosurePtr ...)
@@ -473,6 +475,24 @@
 (I64LtU x (I64Const [1])) => (I64Eqz x)
 (I64LeU (I64Const [1]) x) => (I64Eqz (I64Eqz x))
 (I64Ne x (I64Const [0])) => (I64Eqz (I64Eqz x))
+
+(I32Eq  (I64Const [x]) y) && y.Op != OpWasmI64Const => (I32Eq y  (I64Const [x]))
+(I32Ne  (I64Const [x]) y) && y.Op != OpWasmI64Const => (I32Ne y  (I64Const [x]))
+(I32Eq  (I64Const [x]) (I64Const [y])) => (I64Const [b2i(int32(x) == int32(y))])
+(I32Ne  (I64Const [x]) (I64Const [y])) => (I64Const [b2i(int32(x) != int32(y))])
+(I32Eq x (I64Const [c])) && int32(c) == 0 => (I32Eqz x)
+(I32Ne x (I64Const [c])) && int32(c) == 0 => (I64Eqz (I32Eqz x))
+(I32LtU (I64Const [c]) x) && int32(c) == 0 => (I64Eqz (I32Eqz x))
+(I32LeU x (I64Const [c])) && int32(c) == 0 => (I32Eqz x)
+(I32LtU x (I64Const [c])) && int32(c) == 1 => (I32Eqz x)
+(I32LeU (I64Const [c]) x) && int32(c) == 1 => (I64Eqz (I32Eqz x))
+(I64Eqz (I64Eqz (I32Eqz x))) => (I32Eqz x)
+
+// If the operands are already zero- (or sign-) extended in their 64-bit
+// representation, compare them as i64 and avoid the i32.wrap_i64.
+(I32Eqz x) && wasmZeroExt32(x) => (I64Eqz x)
+(I32(Eq|Ne|LtU|LeU) x y) && wasmZeroExt32(x) && wasmZeroExt32(y) => (I64(Eq|Ne|LtU|LeU) x y)
+(I32(LtS|LeS) x y) && wasmSignExt32(x) && wasmSignExt32(y) => (I64(LtS|LeS) x y)
 
 (I64Add x (I64Const <t> [y])) && !t.IsPtr() => (I64AddConst [y] x)
 (I64AddConst [0] x) => x

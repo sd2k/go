@@ -2899,3 +2899,50 @@ func modularMultiplicativeInverse(x uint64) (y uint64) {
 	y *= 2 - x*y // 96 bits; good enough
 	return
 }
+
+// wasmZeroExt32 reports whether the upper 32 bits of the Wasm value v
+// are known to be zero.
+func wasmZeroExt32(v *Value) bool {
+	switch v.Op {
+	case OpWasmI64Load32U, OpWasmI64Load16U, OpWasmI64Load8U,
+		OpWasmI64Eqz, OpWasmI64Eq, OpWasmI64Ne, OpWasmI64LtS, OpWasmI64LtU, OpWasmI64LeS, OpWasmI64LeU,
+		OpWasmI64GtS, OpWasmI64GtU, OpWasmI64GeS, OpWasmI64GeU,
+		OpWasmI32Eqz, OpWasmI32Eq, OpWasmI32Ne, OpWasmI32LtS, OpWasmI32LtU, OpWasmI32LeS, OpWasmI32LeU,
+		OpWasmI64Clz, OpWasmI64Ctz, OpWasmI64Popcnt:
+		return true
+	case OpWasmI64Const:
+		return uint64(v.AuxInt)>>32 == 0
+	case OpWasmI64And:
+		for _, a := range v.Args {
+			if a.Op == OpWasmI64Const && uint64(a.AuxInt)>>32 == 0 {
+				return true
+			}
+		}
+	case OpWasmI64ShrU:
+		a := v.Args[1]
+		return a.Op == OpWasmI64Const && a.AuxInt >= 32 && a.AuxInt < 64
+	case OpArg, OpLoadReg:
+		// Arguments and spilled values are loaded with loadOp(v.Type),
+		// which zero-extends unsigned types narrower than 64 bits.
+		t := v.Type
+		return !t.IsFloat() && t.Size() <= 4 && !t.IsSigned()
+	}
+	return false
+}
+
+// wasmSignExt32 reports whether the Wasm value v is known to be equal to
+// the sign extension of its low 32 bits.
+func wasmSignExt32(v *Value) bool {
+	switch v.Op {
+	case OpWasmI64Load32S, OpWasmI64Load16S, OpWasmI64Load8S, OpWasmI64Load16U, OpWasmI64Load8U,
+		OpWasmI64Extend32S, OpWasmI64Extend16S, OpWasmI64Extend8S:
+		return true
+	case OpWasmI64Const:
+		return int64(int32(v.AuxInt)) == v.AuxInt
+	case OpArg, OpLoadReg:
+		// See wasmZeroExt32. Signed types are sign-extended.
+		t := v.Type
+		return !t.IsFloat() && t.Size() <= 4 && (t.IsSigned() || t.Size() < 4)
+	}
+	return false
+}
