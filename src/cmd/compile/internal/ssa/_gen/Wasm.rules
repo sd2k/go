@@ -49,7 +49,7 @@
 (Avg64u x y) => (I64Add (I64ShrU (I64Sub x y) (I64Const [1])) y)
 
 // High word of multiply without carry bits; see Hacker's Delight, 2nd. ed, Figure 8-2, p. 174.
-(Hmul64 <t> x y) =>
+(Hmul64 <t> x y) && !buildcfg.GOWASM.WideArith =>
 	(Last <t>
 		x0: (ZeroExt32to64 x)
 		x1: (I64ShrS x (I64Const [32]))
@@ -62,7 +62,7 @@
 		(I64Add (I64Add (I64Mul x1 y1) w2) (I64ShrS w1 (I64Const [32]))))
 
 // Same as Hmul64 but signed shifts now unsigned.
-(Hmul64u <t> x y) =>
+(Hmul64u <t> x y) && !buildcfg.GOWASM.WideArith =>
 	(Last <t>
 		x0: (ZeroExt32to64 x)
 		x1: (I64ShrU x (I64Const [32]))
@@ -74,8 +74,39 @@
 		w2: (I64ShrU tt (I64Const [32]))
 		hi: (I64Add (I64Add (I64Mul x1 y1) w2) (I64ShrU w1 (I64Const [32]))))
 
-(Select0 <t> (Mul64uhilo x y)) => (Hmul64u <t> x y)
-(Select1 <t> (Mul64uhilo x y)) => (I64Mul x y)
+// With the wide-arithmetic proposal (GOWASM=widearith), use the native
+// 64x64->128 multiply and 128-bit add/sub.
+(Hmul64u <t> x y) && buildcfg.GOWASM.WideArith => (Select0 <t> (I64MulWideU x y))
+(Hmul64  <t> x y) && buildcfg.GOWASM.WideArith => (Select0 <t> (I64MulWideS x y))
+(Mul64uhilo  x y) && buildcfg.GOWASM.WideArith => (I64MulWideU x y)
+
+(Add64carry x y (Const64 [0])) && buildcfg.GOWASM.WideArith =>
+	(I64Add128 x (I64Const [0]) y (I64Const [0]))
+(Add64carry x y c) && buildcfg.GOWASM.WideArith =>
+	(I64Add128
+		(Select0 <typ.UInt64> s:(I64Add128 x (I64Const [0]) y (I64Const [0])))
+		(Select1 <typ.UInt64> s)
+		c (I64Const [0]))
+
+// The high word of a 128-bit difference of 64-bit values is 0 or -1;
+// the borrow is its low bit.
+(Select0 <t> (Sub64borrow x y (Const64 [0]))) && buildcfg.GOWASM.WideArith =>
+	(I64Sub x y)
+(Select1 <t> (Sub64borrow x y (Const64 [0]))) && buildcfg.GOWASM.WideArith =>
+	(I64And (Select1 <t> (I64Sub128 x (I64Const [0]) y (I64Const [0]))) (I64Const [1]))
+(Select0 <t> (Sub64borrow x y c)) && buildcfg.GOWASM.WideArith =>
+	(Select0 <t> (I64Sub128
+		(Select0 <typ.UInt64> s:(I64Sub128 x (I64Const [0]) y (I64Const [0])))
+		(Select1 <typ.UInt64> s)
+		c (I64Const [0])))
+(Select1 <t> (Sub64borrow x y c)) && buildcfg.GOWASM.WideArith =>
+	(I64And (Select1 <t> (I64Sub128
+		(Select0 <typ.UInt64> s:(I64Sub128 x (I64Const [0]) y (I64Const [0])))
+		(Select1 <typ.UInt64> s)
+		c (I64Const [0]))) (I64Const [1]))
+
+(Select0 <t> (Mul64uhilo x y)) && !buildcfg.GOWASM.WideArith => (Hmul64u <t> x y)
+(Select1 <t> (Mul64uhilo x y)) && !buildcfg.GOWASM.WideArith => (I64Mul x y)
 
 // Lowering pointer arithmetic
 (OffPtr ...) => (I64AddConst ...)

@@ -334,10 +334,17 @@ type gowasmFeatures struct {
 	// Legacy features, now always enabled
 	//SatConv bool
 	//SignExt bool
+
+	// WideArith enables the wide-arithmetic proposal
+	// (i64.add128, i64.sub128, i64.mul_wide_s, i64.mul_wide_u).
+	WideArith bool
 }
 
 func (f gowasmFeatures) String() string {
 	var flags []string
+	if f.WideArith {
+		flags = append(flags, "widearith")
+	}
 	return strings.Join(flags, ",")
 }
 
@@ -348,6 +355,8 @@ func gowasm() (f gowasmFeatures) {
 			// ignore, always enabled
 		case "signext":
 			// ignore, always enabled
+		case "widearith":
+			f.WideArith = true
 		case "":
 			// ignore
 		default:
@@ -461,6 +470,9 @@ func gogoarchTags() []string {
 		list = append(list, GOARCH+".satconv")
 		// SignExt is always enabled
 		list = append(list, GOARCH+".signext")
+		if GOWASM.WideArith {
+			list = append(list, GOARCH+".widearith")
+		}
 		return list
 	}
 	return nil

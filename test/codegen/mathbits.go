@@ -587,6 +587,7 @@ func AddM(p, q, r *[3]uint) {
 }
 
 func Add64(x, y, ci uint64) (r, co uint64) {
+	// wasm/widearith:"I64Add128"
 	// arm64:"ADDS" "ADCS" "ADC" -"ADD " -"CMP"
 	// amd64:"NEGL" "ADCQ" "SETCS" "MOVBLZX"
 	// loong64: "ADDV" "SGTU"
@@ -609,6 +610,7 @@ func Add64C(x, ci uint64) (r, co uint64) {
 }
 
 func Add64Z(x, y uint64) (r, co uint64) {
+	// wasm/widearith:"I64Add128"
 	// arm64:"ADDS" "ADC" -"ADCS" -"ADD " -"CMP"
 	// amd64:"ADDQ" "SETCS" "MOVBLZX" -"NEGL" -"ADCQ"
 	// loong64: "ADDV" "SGTU"
@@ -810,6 +812,7 @@ func SubM(p, q, r *[3]uint) {
 }
 
 func Sub64(x, y, ci uint64) (r, co uint64) {
+	// wasm/widearith:"I64Sub128"
 	// amd64:"NEGL" "SBBQ" "SETCS" "MOVBLZX"
 	// arm64:"NEGS" "SBCS" "NGC" "NEG" -"ADD" -"SUB" -"CMP"
 	// loong64:"SUBV" "SGTU"
@@ -948,6 +951,7 @@ func Mul(x, y uint) (hi, lo uint) {
 }
 
 func Mul64(x, y uint64) (hi, lo uint64) {
+	// wasm/widearith:"I64MulWideU" -"I64ShrU"
 	// amd64:"MULQ"
 	// arm64:"UMULH" "MUL"
 	// loong64:"MULV" "MULHVU"
@@ -959,6 +963,7 @@ func Mul64(x, y uint64) (hi, lo uint64) {
 }
 
 func Mul64HiOnly(x, y uint64) uint64 {
+	// wasm/widearith:"I64MulWideU" -"I64ShrU"
 	// arm64:"UMULH" -"MUL"
 	// loong64:"MULHVU" -"MULV"
 	// riscv64:"MULHU" -"MUL "

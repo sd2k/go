@@ -240,6 +240,13 @@ const (
 	ATableGrow
 	ATableSize
 	ATableFill
+	AMemoryDiscard // opcode 0xFC 0x12 (memory-control proposal)
+
+	// Wide-arithmetic proposal, opcode 0xFC 0x13 and following.
+	AI64Add128
+	AI64Sub128
+	AI64MulWideS
+	AI64MulWideU
 
 	// WASM Vector instructions 0xFD 0x00 and following
 	AV128Load

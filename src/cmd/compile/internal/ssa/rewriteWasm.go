@@ -2,6 +2,7 @@
 
 package ssa
 
+import "internal/buildcfg"
 import "math"
 import "cmd/compile/internal/types"
 
@@ -43,6 +44,8 @@ func rewriteValueWasm(v *Value) bool {
 	case OpAdd64F:
 		v.Op = OpWasmF64Add
 		return true
+	case OpAdd64carry:
+		return rewriteValueWasm_OpAdd64carry(v)
 	case OpAdd8:
 		v.Op = OpWasmI64Add
 		return true
@@ -801,6 +804,8 @@ func rewriteValueWasm(v *Value) bool {
 	case OpMul64F:
 		v.Op = OpWasmF64Mul
 		return true
+	case OpMul64uhilo:
+		return rewriteValueWasm_OpMul64uhilo(v)
 	case OpMul8:
 		v.Op = OpWasmI64Mul
 		return true
@@ -1455,6 +1460,51 @@ func rewriteValueWasm(v *Value) bool {
 	}
 	return false
 }
+func rewriteValueWasm_OpAdd64carry(v *Value) bool {
+	v_2 := v.Args[2]
+	v_1 := v.Args[1]
+	v_0 := v.Args[0]
+	b := v.Block
+	typ := &b.Func.Config.Types
+	// match: (Add64carry x y (Const64 [0]))
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64Add128 x (I64Const [0]) y (I64Const [0]))
+	for {
+		x := v_0
+		y := v_1
+		if v_2.Op != OpConst64 || auxIntToInt64(v_2.AuxInt) != 0 || !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64Add128)
+		v0 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v0.AuxInt = int64ToAuxInt(0)
+		v.AddArg4(x, v0, y, v0)
+		return true
+	}
+	// match: (Add64carry x y c)
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64Add128 (Select0 <typ.UInt64> s:(I64Add128 x (I64Const [0]) y (I64Const [0]))) (Select1 <typ.UInt64> s) c (I64Const [0]))
+	for {
+		x := v_0
+		y := v_1
+		c := v_2
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64Add128)
+		v0 := b.NewValue0(v.Pos, OpSelect0, typ.UInt64)
+		s := b.NewValue0(v.Pos, OpWasmI64Add128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v2 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v2.AuxInt = int64ToAuxInt(0)
+		s.AddArg4(x, v2, y, v2)
+		v0.AddArg(s)
+		v3 := b.NewValue0(v.Pos, OpSelect1, typ.UInt64)
+		v3.AddArg(s)
+		v.AddArg4(v0, v3, c, v2)
+		return true
+	}
+	return false
+}
 func rewriteValueWasm_OpAddr(v *Value) bool {
 	v_0 := v.Args[0]
 	// match: (Addr {sym} base)
@@ -1974,11 +2024,15 @@ func rewriteValueWasm_OpHmul64(v *Value) bool {
 	b := v.Block
 	typ := &b.Func.Config.Types
 	// match: (Hmul64 <t> x y)
+	// cond: !buildcfg.GOWASM.WideArith
 	// result: (Last <t> x0: (ZeroExt32to64 x) x1: (I64ShrS x (I64Const [32])) y0: (ZeroExt32to64 y) y1: (I64ShrS y (I64Const [32])) x0y0: (I64Mul x0 y0) tt: (I64Add (I64Mul x1 y0) (I64ShrU x0y0 (I64Const [32]))) w1: (I64Add (I64Mul x0 y1) (ZeroExt32to64 tt)) w2: (I64ShrS tt (I64Const [32])) (I64Add (I64Add (I64Mul x1 y1) w2) (I64ShrS w1 (I64Const [32]))))
 	for {
 		t := v.Type
 		x := v_0
 		y := v_1
+		if !(!buildcfg.GOWASM.WideArith) {
+			break
+		}
 		v.reset(OpLast)
 		v.Type = t
 		x0 := b.NewValue0(v.Pos, OpZeroExt32to64, typ.UInt64)
@@ -2018,6 +2072,24 @@ func rewriteValueWasm_OpHmul64(v *Value) bool {
 		v.AddArgs(x0, x1, y0, y1, x0y0, tt, w1, w2, v13)
 		return true
 	}
+	// match: (Hmul64 <t> x y)
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (Select0 <t> (I64MulWideS x y))
+	for {
+		t := v.Type
+		x := v_0
+		y := v_1
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpSelect0)
+		v.Type = t
+		v0 := b.NewValue0(v.Pos, OpWasmI64MulWideS, types.NewTuple(typ.Int64, typ.UInt64))
+		v0.AddArg2(x, y)
+		v.AddArg(v0)
+		return true
+	}
+	return false
 }
 func rewriteValueWasm_OpHmul64u(v *Value) bool {
 	v_1 := v.Args[1]
@@ -2025,11 +2097,15 @@ func rewriteValueWasm_OpHmul64u(v *Value) bool {
 	b := v.Block
 	typ := &b.Func.Config.Types
 	// match: (Hmul64u <t> x y)
+	// cond: !buildcfg.GOWASM.WideArith
 	// result: (Last <t> x0: (ZeroExt32to64 x) x1: (I64ShrU x (I64Const [32])) y0: (ZeroExt32to64 y) y1: (I64ShrU y (I64Const [32])) w0: (I64Mul x0 y0) tt: (I64Add (I64Mul x1 y0) (I64ShrU w0 (I64Const [32]))) w1: (I64Add (I64Mul x0 y1) (ZeroExt32to64 tt)) w2: (I64ShrU tt (I64Const [32])) hi: (I64Add (I64Add (I64Mul x1 y1) w2) (I64ShrU w1 (I64Const [32]))))
 	for {
 		t := v.Type
 		x := v_0
 		y := v_1
+		if !(!buildcfg.GOWASM.WideArith) {
+			break
+		}
 		v.reset(OpLast)
 		v.Type = t
 		x0 := b.NewValue0(v.Pos, OpZeroExt32to64, typ.UInt64)
@@ -2069,6 +2145,24 @@ func rewriteValueWasm_OpHmul64u(v *Value) bool {
 		v.AddArgs(x0, x1, y0, y1, w0, tt, w1, w2, hi)
 		return true
 	}
+	// match: (Hmul64u <t> x y)
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (Select0 <t> (I64MulWideU x y))
+	for {
+		t := v.Type
+		x := v_0
+		y := v_1
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpSelect0)
+		v.Type = t
+		v0 := b.NewValue0(v.Pos, OpWasmI64MulWideU, types.NewTuple(typ.UInt64, typ.UInt64))
+		v0.AddArg2(x, y)
+		v.AddArg(v0)
+		return true
+	}
+	return false
 }
 func rewriteValueWasm_OpIsInBounds(v *Value) bool {
 	v_1 := v.Args[1]
@@ -3226,6 +3320,24 @@ func rewriteValueWasm_OpMove(v *Value) bool {
 		v.reset(OpWasmLoweredMove)
 		v.AuxInt = int64ToAuxInt(s)
 		v.AddArg3(dst, src, mem)
+		return true
+	}
+	return false
+}
+func rewriteValueWasm_OpMul64uhilo(v *Value) bool {
+	v_1 := v.Args[1]
+	v_0 := v.Args[0]
+	// match: (Mul64uhilo x y)
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64MulWideU x y)
+	for {
+		x := v_0
+		y := v_1
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64MulWideU)
+		v.AddArg2(x, y)
 		return true
 	}
 	return false
@@ -4565,7 +4677,57 @@ func rewriteValueWasm_OpRsh8x8(v *Value) bool {
 }
 func rewriteValueWasm_OpSelect0(v *Value) bool {
 	v_0 := v.Args[0]
+	b := v.Block
+	typ := &b.Func.Config.Types
+	// match: (Select0 <t> (Sub64borrow x y (Const64 [0])))
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64Sub x y)
+	for {
+		if v_0.Op != OpSub64borrow {
+			break
+		}
+		_ = v_0.Args[2]
+		x := v_0.Args[0]
+		y := v_0.Args[1]
+		v_0_2 := v_0.Args[2]
+		if v_0_2.Op != OpConst64 || auxIntToInt64(v_0_2.AuxInt) != 0 || !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64Sub)
+		v.AddArg2(x, y)
+		return true
+	}
+	// match: (Select0 <t> (Sub64borrow x y c))
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (Select0 <t> (I64Sub128 (Select0 <typ.UInt64> s:(I64Sub128 x (I64Const [0]) y (I64Const [0]))) (Select1 <typ.UInt64> s) c (I64Const [0])))
+	for {
+		t := v.Type
+		if v_0.Op != OpSub64borrow {
+			break
+		}
+		c := v_0.Args[2]
+		x := v_0.Args[0]
+		y := v_0.Args[1]
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpSelect0)
+		v.Type = t
+		v0 := b.NewValue0(v.Pos, OpWasmI64Sub128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v1 := b.NewValue0(v.Pos, OpSelect0, typ.UInt64)
+		s := b.NewValue0(v.Pos, OpWasmI64Sub128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v3 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v3.AuxInt = int64ToAuxInt(0)
+		s.AddArg4(x, v3, y, v3)
+		v1.AddArg(s)
+		v4 := b.NewValue0(v.Pos, OpSelect1, typ.UInt64)
+		v4.AddArg(s)
+		v0.AddArg4(v1, v4, c, v3)
+		v.AddArg(v0)
+		return true
+	}
 	// match: (Select0 <t> (Mul64uhilo x y))
+	// cond: !buildcfg.GOWASM.WideArith
 	// result: (Hmul64u <t> x y)
 	for {
 		t := v.Type
@@ -4574,6 +4736,9 @@ func rewriteValueWasm_OpSelect0(v *Value) bool {
 		}
 		y := v_0.Args[1]
 		x := v_0.Args[0]
+		if !(!buildcfg.GOWASM.WideArith) {
+			break
+		}
 		v.reset(OpHmul64u)
 		v.Type = t
 		v.AddArg2(x, y)
@@ -4583,7 +4748,69 @@ func rewriteValueWasm_OpSelect0(v *Value) bool {
 }
 func rewriteValueWasm_OpSelect1(v *Value) bool {
 	v_0 := v.Args[0]
+	b := v.Block
+	typ := &b.Func.Config.Types
+	// match: (Select1 <t> (Sub64borrow x y (Const64 [0])))
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64And (Select1 <t> (I64Sub128 x (I64Const [0]) y (I64Const [0]))) (I64Const [1]))
+	for {
+		t := v.Type
+		if v_0.Op != OpSub64borrow {
+			break
+		}
+		_ = v_0.Args[2]
+		x := v_0.Args[0]
+		y := v_0.Args[1]
+		v_0_2 := v_0.Args[2]
+		if v_0_2.Op != OpConst64 || auxIntToInt64(v_0_2.AuxInt) != 0 || !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64And)
+		v0 := b.NewValue0(v.Pos, OpSelect1, t)
+		v1 := b.NewValue0(v.Pos, OpWasmI64Sub128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v2 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v2.AuxInt = int64ToAuxInt(0)
+		v1.AddArg4(x, v2, y, v2)
+		v0.AddArg(v1)
+		v3 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v3.AuxInt = int64ToAuxInt(1)
+		v.AddArg2(v0, v3)
+		return true
+	}
+	// match: (Select1 <t> (Sub64borrow x y c))
+	// cond: buildcfg.GOWASM.WideArith
+	// result: (I64And (Select1 <t> (I64Sub128 (Select0 <typ.UInt64> s:(I64Sub128 x (I64Const [0]) y (I64Const [0]))) (Select1 <typ.UInt64> s) c (I64Const [0]))) (I64Const [1]))
+	for {
+		t := v.Type
+		if v_0.Op != OpSub64borrow {
+			break
+		}
+		c := v_0.Args[2]
+		x := v_0.Args[0]
+		y := v_0.Args[1]
+		if !(buildcfg.GOWASM.WideArith) {
+			break
+		}
+		v.reset(OpWasmI64And)
+		v0 := b.NewValue0(v.Pos, OpSelect1, t)
+		v1 := b.NewValue0(v.Pos, OpWasmI64Sub128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v2 := b.NewValue0(v.Pos, OpSelect0, typ.UInt64)
+		s := b.NewValue0(v.Pos, OpWasmI64Sub128, types.NewTuple(typ.UInt64, typ.UInt64))
+		v4 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v4.AuxInt = int64ToAuxInt(0)
+		s.AddArg4(x, v4, y, v4)
+		v2.AddArg(s)
+		v5 := b.NewValue0(v.Pos, OpSelect1, typ.UInt64)
+		v5.AddArg(s)
+		v1.AddArg4(v2, v5, c, v4)
+		v0.AddArg(v1)
+		v6 := b.NewValue0(v.Pos, OpWasmI64Const, typ.Int64)
+		v6.AuxInt = int64ToAuxInt(1)
+		v.AddArg2(v0, v6)
+		return true
+	}
 	// match: (Select1 <t> (Mul64uhilo x y))
+	// cond: !buildcfg.GOWASM.WideArith
 	// result: (I64Mul x y)
 	for {
 		if v_0.Op != OpMul64uhilo {
@@ -4591,6 +4818,9 @@ func rewriteValueWasm_OpSelect1(v *Value) bool {
 		}
 		y := v_0.Args[1]
 		x := v_0.Args[0]
+		if !(!buildcfg.GOWASM.WideArith) {
+			break
+		}
 		v.reset(OpWasmI64Mul)
 		v.AddArg2(x, y)
 		return true

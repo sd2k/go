@@ -174,8 +174,9 @@ func div7_int64(i int64) int64 {
 	// arm64: "SMULH"
 	// arm64: "ASR [$]1,"
 	// arm64: "SUB R[0-9]+->63,"
-	// wasm: "I64Const [$]613566757"
-	// wasm: "I64Const [$]1227133513"
+	// wasm/satconv: "I64Const [$]613566757"
+	// wasm/satconv: "I64Const [$]1227133513"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 7
 }
 
@@ -202,8 +203,9 @@ func div3_int64(i int64) int64 {
 	// arm64: "ADD"
 	// arm64: "ASR [$]1,"
 	// arm64: "SUB R[0-9]+->63,"
-	// wasm: "I64Const [$]-1431655766"
-	// wasm: "I64Const [$]2863311531"
+	// wasm/satconv: "I64Const [$]-1431655766"
+	// wasm/satconv: "I64Const [$]2863311531"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 3
 }
 
@@ -251,8 +253,9 @@ func div7_int64u(i int64) int64 {
 	// arm64: "UMULH"
 	// arm64: "LSR [$]2,"
 	// arm64: -"SUB"
-	// wasm: "I64Const [$]1227133514"
-	// wasm: "I64Const [$]2454267026"
+	// wasm/satconv: "I64Const [$]1227133514"
+	// wasm/satconv: "I64Const [$]2454267026"
+	// wasm/widearith: "I64MulWide[SU]"
 	// wasm: -"I64Sub"
 	return i / 7
 }
@@ -306,8 +309,9 @@ func div3_uint64(i uint64) uint64 {
 	// arm64: "MOVD [$]-6148914691236517205,"
 	// arm64: "UMULH"
 	// arm64: "LSR [$]1,"
-	// wasm: "I64Const [$]2863311530"
-	// wasm: "I64Const [$]2863311531"
+	// wasm/satconv: "I64Const [$]2863311530"
+	// wasm/satconv: "I64Const [$]2863311531"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 3
 }
 
@@ -341,8 +345,9 @@ func div14_uint64(i uint64) uint64 {
 	// arm64: "MOVD [$]-7905747460161236406,"
 	// arm64: "UMULH"
 	// arm64: "LSR [$]2,"
-	// wasm: "I64Const [$]1227133514"
-	// wasm: "I64Const [$]2454267026"
+	// wasm/satconv: "I64Const [$]1227133514"
+	// wasm/satconv: "I64Const [$]2454267026"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 14
 }
 
@@ -384,8 +389,9 @@ func div7_uint64(i uint64) uint64 {
 	// arm64: "SUB"
 	// arm64: "ADD R[0-9]+>>1,"
 	// arm64: "LSR [$]2,"
-	// wasm: "I64Const [$]613566756"
-	// wasm: "I64Const [$]2454267027"
+	// wasm/satconv: "I64Const [$]613566756"
+	// wasm/satconv: "I64Const [$]2454267027"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 7
 }
 
@@ -398,8 +404,9 @@ func div12345_uint64(i uint64) uint64 {
 	// arm64: "MOVD [$]-6205696892516465602,"
 	// arm64: "UMULH"
 	// arm64: "LSR [$]13,"
-	// wasm: "I64Const [$]835683390"
-	// wasm: "I64Const [$]2850090894"
+	// wasm/satconv: "I64Const [$]835683390"
+	// wasm/satconv: "I64Const [$]2850090894"
+	// wasm/widearith: "I64MulWide[SU]"
 	return i / 12345
 }
 

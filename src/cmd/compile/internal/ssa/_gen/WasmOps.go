@@ -118,6 +118,8 @@ func init() {
 		gp11      = regInfo{inputs: []regMask{gpsp}, outputs: []regMask{gp}}
 		gp21      = regInfo{inputs: []regMask{gpsp, gpsp}, outputs: []regMask{gp}}
 		gp31      = regInfo{inputs: []regMask{gpsp, gpsp, gpsp}, outputs: []regMask{gp}}
+		gp22      = regInfo{inputs: []regMask{gpsp, gpsp}, outputs: []regMask{gp, gp}}
+		gp42      = regInfo{inputs: []regMask{gpsp, gpsp, gpsp, gpsp}, outputs: []regMask{gp, gp}}
 		fp32_01   = regInfo{inputs: nil, outputs: []regMask{fp32}}
 		fp32_11   = regInfo{inputs: []regMask{fp32}, outputs: []regMask{fp32}}
 		fp32_21   = regInfo{inputs: []regMask{fp32, fp32}, outputs: []regMask{fp32}}
@@ -302,6 +304,13 @@ func init() {
 		{name: "I32Rotl", asm: "I32Rotl", argLength: 2, reg: gp21, typ: "Int32", earlyOk: true},     // rotl(arg0, arg1)
 		{name: "I64Rotl", asm: "I64Rotl", argLength: 2, reg: gp21, typ: "Int64", earlyOk: true},     // rotl(arg0, arg1)
 		{name: "I64Popcnt", asm: "I64Popcnt", argLength: 1, reg: gp11, typ: "Int64", earlyOk: true}, // popcnt(arg0)
+
+		// Wide-arithmetic proposal (GOWASM=widearith).
+		// These return tuples and are never generated on the WebAssembly stack.
+		{name: "I64MulWideU", asm: "I64MulWideU", argLength: 2, reg: gp22, typ: "(UInt64,UInt64)", commutative: true}, // (hi, lo) of unsigned arg0*arg1
+		{name: "I64MulWideS", asm: "I64MulWideS", argLength: 2, reg: gp22, typ: "(Int64,UInt64)", commutative: true},  // (hi, lo) of signed arg0*arg1
+		{name: "I64Add128", asm: "I64Add128", argLength: 4, reg: gp42, typ: "(UInt64,UInt64)"},                        // (lo, hi) of (arg1:arg0) + (arg3:arg2)
+		{name: "I64Sub128", asm: "I64Sub128", argLength: 4, reg: gp42, typ: "(UInt64,UInt64)"},                        // (lo, hi) of (arg1:arg0) - (arg3:arg2)
 	}
 
 	WasmOps = append(WasmOps, simdWasmOps(vload, vstore, v11, v21, v31, v11gp, v11fp32, v11fp64, v1gpv, v1fp32v, v1fp64v, gpv, fp32v, fp64v)...)

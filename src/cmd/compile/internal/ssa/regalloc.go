@@ -894,7 +894,8 @@ func (s *regAllocState) init(f *Func) {
 					// - it is used in the same basic block
 					// - it is not a "mem" value
 					// - it is a WebAssembly op
-					if arg.Uses == 1 && arg.Block == v.Block && !arg.Type.IsMemory() && !opcodeTable[arg.Op].generic {
+					// - it is not a tuple (which needs several registers)
+					if arg.Uses == 1 && arg.Block == v.Block && !arg.Type.IsMemory() && !arg.Type.IsTuple() && !opcodeTable[arg.Op].generic {
 						canLiveOnStack.add(arg.ID)
 					}
 				}

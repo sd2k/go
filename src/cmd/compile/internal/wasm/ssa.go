@@ -312,6 +312,24 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p := s.Prog(storeOp(v.Type))
 		ssagen.AddrAuto(&p.To, v)
 
+	case ssa.OpWasmI64MulWideU, ssa.OpWasmI64MulWideS:
+		// Wide-arithmetic proposal. Pushes lo, then hi.
+		getValue64(s, v.Args[0])
+		getValue64(s, v.Args[1])
+		s.Prog(v.Op.Asm())
+		setTupleReg(s, v, 0) // hi
+		setTupleReg(s, v, 1) // lo
+
+	case ssa.OpWasmI64Add128, ssa.OpWasmI64Sub128:
+		// Wide-arithmetic proposal. Pushes lo, then hi.
+		getValue64(s, v.Args[0])
+		getValue64(s, v.Args[1])
+		getValue64(s, v.Args[2])
+		getValue64(s, v.Args[3])
+		s.Prog(v.Op.Asm())
+		setTupleReg(s, v, 1) // hi
+		setTupleReg(s, v, 0) // lo
+
 	case ssa.OpClobber, ssa.OpClobberReg:
 		// TODO: implement for clobberdead experiment. Nop is ok for now.
 
@@ -590,6 +608,16 @@ func f64Const(s *ssagen.State, val float64) {
 func getReg(s *ssagen.State, reg int16) {
 	p := s.Prog(wasm.AGet)
 	p.From = obj.Addr{Type: obj.TYPE_REG, Reg: reg}
+}
+
+// setTupleReg pops the top of the WebAssembly stack into the register
+// assigned to result i of the tuple-typed v, or drops it if there is none.
+func setTupleReg(s *ssagen.State, v *ssa.Value, i int) {
+	if loc := v.Block.Func.RegAlloc[v.ID].(ssa.LocPair)[i]; loc != nil {
+		setReg(s, loc.(*ssa.Register).ObjNum())
+		return
+	}
+	s.Prog(wasm.ADrop)
 }
 
 func setReg(s *ssagen.State, reg int16) {
