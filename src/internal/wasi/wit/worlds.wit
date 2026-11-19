@@ -4,6 +4,7 @@ package go:wasip3-proto;
 // Used by the exec script (go_wasip3_wasm32_exec) when building components.
 world command {
   import wasi:cli/environment@0.3.0;
+  import wasi:cli/exit@0.3.0;
   import wasi:cli/stdout@0.3.0;
   import wasi:cli/stderr@0.3.0;
   import wasi:clocks/types@0.3.0;

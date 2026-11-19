@@ -132,18 +132,24 @@ func nanotime1() int64 {
 	return monotonic_clock_now()
 }
 
+// exit-with-code takes a u8, which the canonical ABI passes as an i32.
+//
+//go:wasmimport wasi:cli/exit@0.3.0 exit-with-code
+func exit_with_code(statusCode uint32)
+
 // exit signals completion to the host and terminates the component.
 // Called by the runtime when main returns or os.Exit is called.
 //
 //go:linkname exit
 func exit(code int32) {
-	// Signal the async export result to the host.
-	// The WASI result<_, _> type only has ok (0) and err (1) discriminants.
-	var result int32
 	if code != 0 {
-		result = 1
+		// run's result<_, _> can only say "failed", so report the code
+		// itself through exit-with-code, which does not return. Like a
+		// POSIX exit status, only the low 8 bits are kept.
+		exit_with_code(uint32(code) & 0xff)
 	}
-	task_return_run(result)
+	// Signal the async export result to the host.
+	task_return_run(0)
 	// Note: we intentionally do NOT call waitable_set_drop here.
 	// Stream/future handles joined via waitable_join are not removed by
 	// their typed drop functions (stream-drop-*, future-drop-*), leaving
