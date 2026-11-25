@@ -47,17 +47,16 @@ func SetNonblock(fdNum int, nonblocking bool) error {
 	return nil
 }
 
-// wasip3Args returns the program arguments from wasi:cli/environment.
+// wasip3Args and wasip3Envs give the runtime the program arguments and
+// environment variables, from wasi:cli/environment.
 //
 //go:linkname wasip3Args
-func wasip3Args() []string {
-	return cli.GetArguments()
-}
+var wasip3Args = cli.GetArguments
 
-// wasip3Envs returns the environment variables from wasi:cli/environment.
-//
 //go:linkname wasip3Envs
-func wasip3Envs() []string {
+var wasip3Envs = getEnvs
+
+func getEnvs() []string {
 	entries := cli.GetEnvironment()
 	envs := make([]string, len(entries))
 	for i, e := range entries {

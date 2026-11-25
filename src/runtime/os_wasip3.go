@@ -108,15 +108,25 @@ func readRandom(r []byte) int {
 }
 
 func goenvs() {
-	argslice = wasip3Args()
-	envs = wasip3Envs()
+	// A program that doesn't link syscall can't read its arguments
+	// or environment, and the runtime's settings then default.
+	if wasip3Args != nil {
+		argslice = wasip3Args()
+	}
+	envs = []string{} // not nil: initialized
+	if wasip3Envs != nil {
+		envs = wasip3Envs()
+	}
 }
 
+// syscall initializes these statically, if it is linked: calling
+// functions in a package that isn't linked would make an invalid module.
+//
 //go:linkname wasip3Args syscall.wasip3Args
-func wasip3Args() []string
+var wasip3Args func() []string
 
 //go:linkname wasip3Envs syscall.wasip3Envs
-func wasip3Envs() []string
+var wasip3Envs func() []string
 
 func walltime() (sec int64, nsec int32) {
 	return walltime1()
