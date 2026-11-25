@@ -737,6 +737,11 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 			for i := 0; i < numResumePoints+1; i++ {
 				p = appendp(p, ABlock)
 			}
+			// Calls enter at PC_B 0, the start of segment 0: skip the
+			// br_table, which is an indirect jump.
+			p = appendp(p, AGet, regAddr(REG_PC_B))
+			p = appendp(p, AI32Eqz)
+			p = appendp(p, ABrIf, constAddr(0))
 			p = appendp(p, AGet, regAddr(REG_PC_B)) // read next basic block from PC_B
 			p = appendp(p, ABrTable, obj.Addr{Val: tableIdxs})
 			p = appendp(p, AEnd) // end of Block
