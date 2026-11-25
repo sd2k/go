@@ -73,6 +73,10 @@ func notewakeup(n *note) {
 		throw("notewakeup - double wakeup")
 	}
 	n.key = 1
+	if gp := n.gp.ptr(); gp != nil {
+		n.gp = 0
+		goready(gp, 1)
+	}
 }
 
 func notesleep(n *note) {
@@ -89,6 +93,18 @@ func notetsleepg(n *note, ns int64) bool {
 	gp := getg()
 	if gp == gp.m.g0 {
 		throw("notetsleepg on g0")
+	}
+
+	// Park an untimed wait, as os/signal's receiver does for the life of the
+	// program. Spinning on Gosched instead keeps a goroutine always
+	// runnable, so findRunnable never reaches netpoll and every goroutine
+	// waiting on async I/O starves.
+	if ns < 0 {
+		if n.key == 0 {
+			n.gp.set(gp)
+			gopark(nil, nil, waitReasonSleep, traceBlockSleep, 1)
+		}
+		return true
 	}
 
 	deadline := nanotime() + ns
