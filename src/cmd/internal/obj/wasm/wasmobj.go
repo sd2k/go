@@ -14,6 +14,8 @@ import (
 	"internal/abi"
 	"io"
 	"math"
+	"slices"
+	"sort"
 )
 
 var Register = map[string]int16{
@@ -290,8 +292,10 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 	numResumePoints := 0
 	explicitBlockDepth := 0
 	pc := int64(0) // pc is only incremented when necessary, this avoids bloat of the BrTable instruction
-	var tableIdxs []uint64
-	tablePC := int64(0)
+	// Resume segment k starts at pc segStarts[k], after the End
+	// resumeEnds[k] (k > 0).
+	segStarts := []int64{0}
+	resumeEnds := []*obj.Prog{nil}
 	base := ctxt.PosTable.Pos(s.Func().Text.Pos).Base()
 	for p := s.Func().Text; p != nil; p = p.Link {
 		prevBase := base
@@ -311,12 +315,10 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				panic("RESUME can only be used on toplevel")
 			}
 			p.As = AEnd
-			for tablePC <= pc {
-				tableIdxs = append(tableIdxs, uint64(numResumePoints))
-				tablePC++
-			}
 			numResumePoints++
 			pc++
+			segStarts = append(segStarts, pc)
+			resumeEnds = append(resumeEnds, p)
 
 		case obj.ACALL:
 			if explicitBlockDepth != 0 {
@@ -342,7 +344,6 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 			}
 		}
 	}
-	tableIdxs = append(tableIdxs, uint64(numResumePoints))
 	s.Size = pc + 1
 	if pc >= 1<<16 {
 		ctxt.Diag("function too big: %s exceeds 65536 blocks", s)
@@ -402,20 +403,46 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 		p = appendp(p, AEnd)
 	}
 
-	// segOf returns the resume segment that pc is in: the index of the
-	// block whose end the entry br_table jumps to for that pc.
-	segOf := func(pc int64) uint64 {
-		if pc < int64(len(tableIdxs)) {
-			return tableIdxs[pc]
-		}
-		return tableIdxs[len(tableIdxs)-1]
+	// segOf returns the resume segment that pc is in.
+	segOf := func(pc int64) int {
+		return sort.Search(len(segStarts), func(i int) bool { return segStarts[i] > pc }) - 1
 	}
 
-	// record the branches targeting the entry loop, the unwind exit and
-	// the resume blocks; their targets will be filled in later
-	var entryPointLoopBranches []*obj.Prog
-	var forwardBranches []*obj.Prog
-	var forwardSegs []uint64
+	// Structure the jumps between basic blocks: see loops.go.
+	var jumps [][2]int
+	for p := s.Func().Text; p != nil; p = p.Link {
+		if p.As == obj.AJMP && p.To.Type == obj.TYPE_BRANCH {
+			jumps = append(jumps, [2]int{segOf(p.Pc), segOf(p.To.Val.(*obj.Prog).Pc)})
+		}
+	}
+	rs := findRegions(numResumePoints+1, jumps)
+	for _, j := range jumps {
+		if j[1] > j[0] {
+			rs.jumpInto(j[0], j[1])
+		}
+	}
+	for p := s.Func().Text; p != nil; p = p.Link {
+		if p.As == obj.ACALL {
+			if p.To.Sym != nil && p.To.Sym.Name == "runtime.deferreturn" {
+				// The runtime resumes at the resume point
+				// before the call: see ssaGenValue.
+				rs.resumeAt(segOf(p.Pc))
+			}
+			rs.resumeAt(segOf(p.Link.Pc))
+		}
+	}
+	// A call_indirect uses PC_B as a scratch register, which mustn't
+	// leave it set where a loop dispatches.
+	clearPC_B := slices.ContainsFunc(rs.loops, func(l *region) bool { return len(l.targets) > 0 })
+
+	// record the branches targeting the unwind exit and the regions,
+	// their targets with be filled in later
+	type branch struct {
+		p     *obj.Prog
+		r     *region
+		child int // or -1 for the top of loop r
+	}
+	var branches []branch
 	var unwindExitBranches []*obj.Prog
 	currentDepth := 0
 	for p := s.Func().Text; p != nil; p = p.Link {
@@ -432,22 +459,25 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 			p.As = obj.ANOP
 
 			if jmp.To.Type == obj.TYPE_BRANCH {
-				// A jump to a basic block lands at the start of the
-				// target's resume segment. If that segment comes later,
-				// its resume block is still open here: branch out of it
-				// directly instead of going through the entry loop's
-				// br_table.
-				if seg := segOf(jmp.To.Val.(*obj.Prog).Pc); seg > segOf(jmp.Pc) {
+				// jump to basic block, which lands at the start of
+				// its resume segment
+				from, to := segOf(jmp.Pc), segOf(jmp.To.Val.(*obj.Prog).Pc)
+				if to <= from {
+					// back edge: branch to the top of the loop
 					p = appendp(p, ABr)
-					forwardBranches = append(forwardBranches, p)
-					forwardSegs = append(forwardSegs, seg)
+					branches = append(branches, branch{p, rs.loopAt[to], -1})
 					break
 				}
-				// jump to basic block
-				p = appendp(p, AI32Const, constAddr(jmp.To.Val.(*obj.Prog).Pc))
-				p = appendp(p, ASet, regAddr(REG_PC_B)) // write next basic block to PC_B
-				p = appendp(p, ABr)                     // jump to beginning of entryPointLoop
-				entryPointLoopBranches = append(entryPointLoopBranches, p)
+				// forward: branch out of the block whose end starts
+				// the target, or the loop it is in
+				r, i := rs.target(from, to)
+				if r.starts[i] != to {
+					// The loop's dispatch takes PC_B on to the target.
+					p = appendp(p, AI32Const, constAddr(segStarts[to]))
+					p = appendp(p, ASet, regAddr(REG_PC_B))
+				}
+				p = appendp(p, ABr)
+				branches = append(branches, branch{p, r, i})
 				break
 			}
 
@@ -534,6 +564,10 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				p = appendp(p, ASet, regAddr(REG_PC_B))
 				p = appendp(p, AI32Const, constAddr(0))
 				p = appendp(p, AGet, regAddr(REG_PC_B))
+				if clearPC_B {
+					p = appendp(p, AI32Const, constAddr(0))
+					p = appendp(p, ASet, regAddr(REG_PC_B))
+				}
 
 				p = appendp(p, ACallIndirect)
 
@@ -740,6 +774,87 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 		}
 	}
 
+	// startRegion appends the start of region r after p: its Loop, unless
+	// it is the top level, the blocks whose ends start its children, and
+	// if it dispatches, its jump to the child that PC_B is in.
+	startRegion := func(p *obj.Prog, r *region) *obj.Prog {
+		if r != rs.top {
+			p = appendp(p, ALoop)
+			r.loop = p
+		}
+		n := len(r.starts)
+		r.blocks = make([]*obj.Prog, n)
+		for i := n - 1; i > 0; i-- {
+			p = appendp(p, ABlock)
+			r.blocks[i] = p
+		}
+		if r == rs.top && numResumePoints == 0 || r != rs.top && len(r.targets) == 0 {
+			return p
+		}
+		p = appendp(p, ABlock)
+		r.blocks[0] = p
+		// Here child i's block is at depth i. Calls enter at PC_B 0,
+		// and normal control flow reaches a loop with PC_B 0: start the
+		// first child, skipping the br_table, which is an indirect jump.
+		p = appendp(p, AGet, regAddr(REG_PC_B))
+		p = appendp(p, AI32Eqz)
+		p = appendp(p, ABrIf, constAddr(0))
+		// pcs returns the pcs of child c.
+		pcs := func(c int) (start, end int64) {
+			start = segStarts[r.starts[c]]
+			switch {
+			case c+1 < n:
+				end = segStarts[r.starts[c+1]]
+			case r.last+1 < len(segStarts):
+				end = segStarts[r.last+1]
+			default:
+				end = s.Size
+			}
+			return start, end
+		}
+		if r == rs.top {
+			// One entry per pc up to the last child's, the default.
+			var idxs []uint64
+			for c := range n - 1 {
+				start, end := pcs(c)
+				for range end - start {
+					idxs = append(idxs, uint64(c))
+				}
+			}
+			idxs = append(idxs, uint64(n-1))
+			p = appendp(p, AGet, regAddr(REG_PC_B)) // read next basic block from PC_B
+			p = appendp(p, ABrTable, obj.Addr{Val: idxs})
+			p = appendp(p, AEnd) // end of Block
+			return p
+		}
+		// Compare PC_B with each target's pcs, starting with the first
+		// child's. That isn't a target, but a jump to it from outside
+		// the loop around this one passes PC_B on to it (a rotated
+		// loop whose header is this loop, for example).
+		// ponytail: a linear scan of the targets, which loops have
+		// few of; a binary search would do if one had hundreds.
+		for _, c := range slices.Insert(slices.Clone(r.targets), 0, 0) {
+			start, end := pcs(c)
+			p = appendp(p, AGet, regAddr(REG_PC_B))
+			p = appendp(p, AI32Const, constAddr(start))
+			p = appendp(p, AI32Sub)
+			p = appendp(p, AI32Const, constAddr(end-start))
+			p = appendp(p, AI32LtU)
+			p = appendp(p, AIf)
+			if l := rs.loopAt[r.starts[c]]; c == 0 || l == nil || len(l.targets) == 0 {
+				p = appendp(p, AI32Const, constAddr(0))
+				p = appendp(p, ASet, regAddr(REG_PC_B))
+			}
+			p = appendp(p, ABr, constAddr(int64(c)+1))
+			p = appendp(p, AEnd)
+		}
+		// PC_B is stale, from a resume at the top level.
+		p = appendp(p, AI32Const, constAddr(0))
+		p = appendp(p, ASet, regAddr(REG_PC_B))
+		p = appendp(p, AEnd) // end of Block
+		return p
+	}
+
 	{
 		p := s.Func().Text
 		if len(unwindExitBranches) > 0 {
@@ -748,38 +863,33 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				b.To = obj.Addr{Type: obj.TYPE_BRANCH, Val: p}
 			}
 		}
-		if len(entryPointLoopBranches) > 0 {
-			p = appendp(p, ALoop) // entryPointLoop, used to jump between basic blocks
-			for _, b := range entryPointLoopBranches {
-				b.To = obj.Addr{Type: obj.TYPE_BRANCH, Val: p}
+		// Lay out the regions. Segment k > 0 starts after
+		// resumeEnds[k], which ends the block for the child of its
+		// region that starts there.
+		p = startRegion(p, rs.top)
+		for k := 0; k <= numResumePoints; k++ {
+			if k > 0 {
+				p = resumeEnds[k]
+				for range rs.endsAt[k-1] {
+					p = appendp(p, AEnd) // end of a loop
+				}
 			}
-		}
-		if numResumePoints > 0 {
-			// Add Block instructions for resume points and BrTable to jump to selected resume point.
-			// The block appended i-th from the outside ends where
-			// segment numResumePoints-i starts.
-			resumeBlocks := make([]*obj.Prog, numResumePoints+1)
-			for i := 0; i < numResumePoints+1; i++ {
-				p = appendp(p, ABlock)
-				resumeBlocks[numResumePoints-i] = p
+			if l := rs.loopAt[k]; l != nil {
+				p = startRegion(p, l)
 			}
-			for i, b := range forwardBranches {
-				b.To = obj.Addr{Type: obj.TYPE_BRANCH, Val: resumeBlocks[forwardSegs[i]]}
-			}
-			// Calls enter at PC_B 0, the start of segment 0: skip the
-			// br_table, which is an indirect jump.
-			p = appendp(p, AGet, regAddr(REG_PC_B))
-			p = appendp(p, AI32Eqz)
-			p = appendp(p, ABrIf, constAddr(0))
-			p = appendp(p, AGet, regAddr(REG_PC_B)) // read next basic block from PC_B
-			p = appendp(p, ABrTable, obj.Addr{Val: tableIdxs})
-			p = appendp(p, AEnd) // end of Block
 		}
 		for p.Link != nil {
 			p = p.Link // function instructions
 		}
-		if len(entryPointLoopBranches) > 0 {
-			p = appendp(p, AEnd) // end of entryPointLoop
+		for range rs.endsAt[numResumePoints] {
+			p = appendp(p, AEnd) // end of a loop
+		}
+		for _, b := range branches {
+			to := b.r.loop
+			if b.child >= 0 {
+				to = b.r.blocks[b.child]
+			}
+			b.p.To = obj.Addr{Type: obj.TYPE_BRANCH, Val: to}
 		}
 		p = appendp(p, obj.AUNDEF)
 		if len(unwindExitBranches) > 0 {

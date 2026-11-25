@@ -1,0 +1,13 @@
+pingpong 18012232
+grow 16486848
+recovering 18812
+deferInLoop 249500
+indirect 896500
+irreducible-even 509016
+irreducible-odd 512792
+labeled 630
+workers 125982000
+selectLoop -2251500
+recurse 300001
+panicDeep 600
+recoverInLoop -133952
