@@ -402,9 +402,20 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 		p = appendp(p, AEnd)
 	}
 
-	// record the branches targeting the entry loop and the unwind exit,
-	// their targets with be filled in later
+	// segOf returns the resume segment that pc is in: the index of the
+	// block whose end the entry br_table jumps to for that pc.
+	segOf := func(pc int64) uint64 {
+		if pc < int64(len(tableIdxs)) {
+			return tableIdxs[pc]
+		}
+		return tableIdxs[len(tableIdxs)-1]
+	}
+
+	// record the branches targeting the entry loop, the unwind exit and
+	// the resume blocks; their targets will be filled in later
 	var entryPointLoopBranches []*obj.Prog
+	var forwardBranches []*obj.Prog
+	var forwardSegs []uint64
 	var unwindExitBranches []*obj.Prog
 	currentDepth := 0
 	for p := s.Func().Text; p != nil; p = p.Link {
@@ -421,6 +432,17 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 			p.As = obj.ANOP
 
 			if jmp.To.Type == obj.TYPE_BRANCH {
+				// A jump to a basic block lands at the start of the
+				// target's resume segment. If that segment comes later,
+				// its resume block is still open here: branch out of it
+				// directly instead of going through the entry loop's
+				// br_table.
+				if seg := segOf(jmp.To.Val.(*obj.Prog).Pc); seg > segOf(jmp.Pc) {
+					p = appendp(p, ABr)
+					forwardBranches = append(forwardBranches, p)
+					forwardSegs = append(forwardSegs, seg)
+					break
+				}
 				// jump to basic block
 				p = appendp(p, AI32Const, constAddr(jmp.To.Val.(*obj.Prog).Pc))
 				p = appendp(p, ASet, regAddr(REG_PC_B)) // write next basic block to PC_B
@@ -734,8 +756,15 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 		}
 		if numResumePoints > 0 {
 			// Add Block instructions for resume points and BrTable to jump to selected resume point.
+			// The block appended i-th from the outside ends where
+			// segment numResumePoints-i starts.
+			resumeBlocks := make([]*obj.Prog, numResumePoints+1)
 			for i := 0; i < numResumePoints+1; i++ {
 				p = appendp(p, ABlock)
+				resumeBlocks[numResumePoints-i] = p
+			}
+			for i, b := range forwardBranches {
+				b.To = obj.Addr{Type: obj.TYPE_BRANCH, Val: resumeBlocks[forwardSegs[i]]}
 			}
 			// Calls enter at PC_B 0, the start of segment 0: skip the
 			// br_table, which is an indirect jump.
