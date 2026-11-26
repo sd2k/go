@@ -44,6 +44,14 @@ COMPONENT="$TMPOUT/component.wasm"
 wasm-tools component embed "$WIT_DIR" --world command "$WASM" -o "$EMBEDDED"
 wasm-tools component new "$EMBEDDED" -o "$COMPONENT"
 
+# The runtimes below are exec'd so that go test's timeout signals reach
+# them, but exec skips the EXIT trap. Hold the component open on fd 3 and
+# remove the temp directory now, so it isn't left behind.
+exec 3<"$COMPONENT"
+rm -rf "$TMPOUT"
+trap - EXIT
+COMPONENT=/dev/fd/3
+
 # Run the component with the selected runtime.
 case "${GOWASIRUNTIME:-wasmtime}" in
     "wasmtime")
